@@ -43,7 +43,8 @@ void Hydro::NewBlockTimeStep() {
   MeshBlock *pmb = pmy_block;
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
-  AthenaArray<Real> &w = pmb->phydro->w;
+  const AthenaArray<Real> &w = pmb->phydro->w;
+  const AthenaArray<Real> &bcc = pmb->pfield->bcc;
   // hyperbolic timestep constraint in each (x1-slice) cell along coordinate direction:
   AthenaArray<Real> &dt1 = dt1_, &dt2 = dt2_, &dt3 = dt3_;  // (x1 slices)
   Real wi[NWAVE];
@@ -58,6 +59,7 @@ void Hydro::NewBlockTimeStep() {
   // addressed. dt_hydro, dt_main (inaccurate since "dt" is actually main), dt_MHD?
   Real min_dt_parabolic  = real_max;
   Real min_dt_user  = real_max;
+  Real gamma = pmb->peos->GetGamma();
 
   // TODO(felker): skip this next loop if pm->fluid_setup == FluidFormulation::disabled
   FluidFormulation fluid_status = pmb->pmy_mesh->fluid_setup;
@@ -66,68 +68,52 @@ void Hydro::NewBlockTimeStep() {
       pmb->pcoord->CenterWidth1(k, j, is, ie, dt1);
       pmb->pcoord->CenterWidth2(k, j, is, ie, dt2);
       pmb->pcoord->CenterWidth3(k, j, is, ie, dt3);
-      if (!RELATIVISTIC_DYNAMICS) {
-#pragma ivdep
-        for (int i=is; i<=ie; ++i) {
-          wi[IDN] = w(IDN,k,j,i);
-          wi[IVX] = w(IVX,k,j,i);
-          wi[IVY] = w(IVY,k,j,i);
-          wi[IVZ] = w(IVZ,k,j,i);
-          if (NON_BAROTROPIC_EOS) wi[IPR] = w(IPR,k,j,i);
-          if (fluid_status == FluidFormulation::evolve) {
-            if (MAGNETIC_FIELDS_ENABLED) {
-              AthenaArray<Real> &bcc = pmb->pfield->bcc, &b_x1f = pmb->pfield->b.x1f,
-                              &b_x2f = pmb->pfield->b.x2f, &b_x3f = pmb->pfield->b.x3f;
-              Real bx = bcc(IB1,k,j,i) + std::abs(b_x1f(k,j,i) - bcc(IB1,k,j,i));
-              wi[IBY] = bcc(IB2,k,j,i);
-              wi[IBZ] = bcc(IB3,k,j,i);
-              Real cf = pmb->peos->FastMagnetosonicSpeed(wi,bx);
-              dt1(i) /= (std::abs(wi[IVX]) + cf);
+#pragma omp simd
+      for (int i=is; i<=ie; ++i) {
+        Real idn = 1.0/w(IDN,k,j,i);
+        Real wvx = w(IVX,k,j,i);
+        Real wvy = w(IVY,k,j,i);
+        Real wvz = w(IVZ,k,j,i);
+        Real wpr = w(IPR,k,j,i);
+        Real wbx = bcc(IB1,k,j,i);
+        Real wby = bcc(IB2,k,j,i);
+        Real wbz = bcc(IB3,k,j,i);
 
-              wi[IBY] = bcc(IB3,k,j,i);
-              wi[IBZ] = bcc(IB1,k,j,i);
-              bx = bcc(IB2,k,j,i) + std::abs(b_x2f(k,j,i) - bcc(IB2,k,j,i));
-              cf = pmb->peos->FastMagnetosonicSpeed(wi,bx);
-              dt2(i) /= (std::abs(wi[IVY]) + cf);
-
-              wi[IBY] = bcc(IB1,k,j,i);
-              wi[IBZ] = bcc(IB2,k,j,i);
-              bx = bcc(IB3,k,j,i) + std::abs(b_x3f(k,j,i) - bcc(IB3,k,j,i));
-              cf = pmb->peos->FastMagnetosonicSpeed(wi,bx);
-              dt3(i) /= (std::abs(wi[IVZ]) + cf);
-            } else {
-              Real cs = pmb->peos->SoundSpeed(wi);
-              dt1(i) /= (std::abs(wi[IVX]) + cs);
-              dt2(i) /= (std::abs(wi[IVY]) + cs);
-              dt3(i) /= (std::abs(wi[IVZ]) + cs);
-            }
-          } else { // FluidFormulation::background or disabled. Assume scalar advection:
-            dt1(i) /= (std::abs(wi[IVX]));
-            dt2(i) /= (std::abs(wi[IVY]));
-            dt3(i) /= (std::abs(wi[IVZ]));
-          }
-        }
+        Real bx2 = wbx*wbx;
+        Real by2 = wby*wby;
+        Real bz2 = wbz*wbz;
+        Real bsq = bx2 + by2 + bz2;
+        Real asq = gamma*wpr;
+        Real qsq = bsq + asq;
+        Real tmp = bsq - asq;
+        Real tsq = tmp * tmp;
+        Real cfx = std::sqrt(0.5*(qsq + std::sqrt(tsq + 4.0*asq*(by2+bz2)))*idn);
+        Real cfy = std::sqrt(0.5*(qsq + std::sqrt(tsq + 4.0*asq*(bx2+bz2)))*idn);
+        Real cfz = std::sqrt(0.5*(qsq + std::sqrt(tsq + 4.0*asq*(bx2+by2)))*idn);
+        dt1(i) /= (std::abs(wvx) + cfx);
+        dt2(i) /= (std::abs(wvy) + cfy);
+        dt3(i) /= (std::abs(wvz) + cfz);
       }
 
       // compute minimum of (v1 +/- C)
+#pragma omp simd
       for (int i=is; i<=ie; ++i) {
-        Real& dt_1 = dt1(i);
-        min_dt_hyperbolic = std::min(min_dt_hyperbolic, dt_1);
+        min_dt_hyperbolic = std::min(min_dt_hyperbolic, dt1(i));
       }
 
       // if grid is 2D/3D, compute minimum of (v2 +/- C)
       if (pmb->block_size.nx2 > 1) {
+#pragma omp simd
         for (int i=is; i<=ie; ++i) {
-          Real& dt_2 = dt2(i);
-          min_dt_hyperbolic = std::min(min_dt_hyperbolic, dt_2);
+          min_dt_hyperbolic = std::min(min_dt_hyperbolic, dt2(i));
         }
       }
 
       // if grid is 3D, compute minimum of (v3 +/- C)
       if (pmb->block_size.nx3 > 1) {
+#pragma omp simd
         for (int i=is; i<=ie; ++i) {
-          Real& dt_3 = dt3(i);
-          min_dt_hyperbolic = std::min(min_dt_hyperbolic, dt_3);
+          min_dt_hyperbolic = std::min(min_dt_hyperbolic, dt3(i));
         }
       }
     }
