@@ -35,346 +35,301 @@ struct Cons1D {
 
 void Hydro::RiemannSolver(const int k, const int j, const int il, const int iu,
                           const int ivx, const AthenaArray<Real> &bx,
-                          AthenaArray<Real> &wl, AthenaArray<Real> &wr,
+                          const AthenaArray<Real> &wl, const AthenaArray<Real> &wr,
                           AthenaArray<Real> &flx,
                           AthenaArray<Real> &ey, AthenaArray<Real> &ez,
                           AthenaArray<Real> &wct, const AthenaArray<Real> &dxw) {
   int ivy = IVX + ((ivx-IVX)+1)%3;
   int ivz = IVX + ((ivx-IVX)+2)%3;
-  Real flxi[(NWAVE)];             // temporary variable to store flux
-  Real wli[(NWAVE)],wri[(NWAVE)]; // L/R states, primitive variables (input)
-  Real spd[5];                    // signal speeds, left to right
+  const int N = 128;
+  static Real fdn[N], fvx[N], fvy[N], fvz[N], fen[N], eya[N], eza[N], wcta[N];
 
-  Real igm1;
   EquationOfState *peos = pmy_block->peos;
-  if (!GENERAL_EOS) igm1 = 1.0 / (peos->GetGamma() - 1.0);
+  Real gm = peos->GetGamma();
+  Real igm1 = 1.0 / (gm - 1.0);
   Real dt = pmy_block->pmy_mesh->dt;
 
-#pragma omp simd simdlen(SIMD_WIDTH) private(wli,wri,spd,flxi)
+//#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
+#pragma fj loop loop_fission_target
   for (int i=il; i<=iu; ++i) {
-    Cons1D ul,ur;                   // L/R states, conserved variables (computed)
-    Cons1D ulst,uldst,urdst,urst;   // Conserved variable for all states
-    Cons1D fl,fr;                   // Fluxes for left & right states
-
     //--- Step 1.  Load L/R states into local variables
+    Real wldn=wl(IDN,i);
+    Real wlvx=wl(ivx,i);
+    Real wlvy=wl(ivy,i);
+    Real wlvz=wl(ivz,i);
+    Real wlpr=wl(IPR,i);
+    Real wlby=wl(IBY,i);
+    Real wlbz=wl(IBZ,i);
 
-    wli[IDN]=wl(IDN,i);
-    wli[IVX]=wl(ivx,i);
-    wli[IVY]=wl(ivy,i);
-    wli[IVZ]=wl(ivz,i);
-    wli[IPR]=wl(IPR,i);
-    wli[IBY]=wl(IBY,i);
-    wli[IBZ]=wl(IBZ,i);
-
-    wri[IDN]=wr(IDN,i);
-    wri[IVX]=wr(ivx,i);
-    wri[IVY]=wr(ivy,i);
-    wri[IVZ]=wr(ivz,i);
-    wri[IPR]=wr(IPR,i);
-    wri[IBY]=wr(IBY,i);
-    wri[IBZ]=wr(IBZ,i);
+    Real wrdn=wr(IDN,i);
+    Real wrvx=wr(ivx,i);
+    Real wrvy=wr(ivy,i);
+    Real wrvz=wr(ivz,i);
+    Real wrpr=wr(IPR,i);
+    Real wrby=wr(IBY,i);
+    Real wrbz=wr(IBZ,i);
 
     Real bxi = bx(k,j,i);
 
     // Compute L/R states for selected conserved variables
     Real bxsq = bxi*bxi;
     // (KGF): group transverse vector components for floating-point associativity symmetry
-    Real pbl = 0.5*(bxsq + (SQR(wli[IBY]) + SQR(wli[IBZ])));  // magnetic pressure (l/r)
-    Real pbr = 0.5*(bxsq + (SQR(wri[IBY]) + SQR(wri[IBZ])));
-    Real kel = 0.5*wli[IDN]*(SQR(wli[IVX]) + (SQR(wli[IVY]) + SQR(wli[IVZ])));
-    Real ker = 0.5*wri[IDN]*(SQR(wri[IVX]) + (SQR(wri[IVY]) + SQR(wri[IVZ])));
+    Real pbl = 0.5*(bxsq + (SQR(wlby) + SQR(wlbz)));  // magnetic pressuren (l/r)
+    Real pbr = 0.5*(bxsq + (SQR(wrby) + SQR(wrbz)));
+    Real kel = 0.5*wldn*(SQR(wlvx) + (SQR(wlvy) + SQR(wlvz)));
+    Real ker = 0.5*wrdn*(SQR(wrvx) + (SQR(wrvy) + SQR(wrvz)));
 
-    ul.d  = wli[IDN];
-    ul.mx = wli[IVX]*ul.d;
-    ul.my = wli[IVY]*ul.d;
-    ul.mz = wli[IVZ]*ul.d;
-    if (GENERAL_EOS) {
-      ul.e  = peos->EgasFromRhoP(ul.d, wli[IPR]) + kel + pbl;
-    } else {
-      ul.e  = wli[IPR]*igm1 + kel + pbl;
-    }
-    ul.by = wli[IBY];
-    ul.bz = wli[IBZ];
-
-    ur.d  = wri[IDN];
-    ur.mx = wri[IVX]*ur.d;
-    ur.my = wri[IVY]*ur.d;
-    ur.mz = wri[IVZ]*ur.d;
-    if (GENERAL_EOS) {
-      ur.e  = peos->EgasFromRhoP(ur.d, wri[IPR]) + ker + pbr;
-    } else {
-      ur.e  = wri[IPR]*igm1 + ker + pbr;
-    }
-    ur.by = wri[IBY];
-    ur.bz = wri[IBZ];
+    const Real &uldn  = wldn;
+    const Real &urdn  = wrdn;
 
     //--- Step 2.  Compute L & R wave speeds according to Miyoshi & Kusano, eqn. (67)
 
-    Real cfl = pmy_block->peos->FastMagnetosonicSpeed(wli,bxi);
-    Real cfr = pmy_block->peos->FastMagnetosonicSpeed(wri,bxi);
+    Real asql = gm*wlpr;
+    Real asqr = gm*wrpr;
+    Real ct2l = wlby*wlby+wlbz*wlbz;
+    Real ct2r = wrby*wrby+wrbz*wrbz;
+    Real qsql = bxsq+ct2l+asql;
+    Real qsqr = bxsq+ct2r+asqr;
+    Real tmpl = bxsq+ct2l-asql;
+    Real tmpr = bxsq+ct2r-asqr;
+    Real cfl = std::sqrt(0.5*(qsql+std::sqrt(tmpl*tmpl+4.0*asql*ct2l))/wldn);
+    Real cfr = std::sqrt(0.5*(qsqr+std::sqrt(tmpr*tmpr+4.0*asqr*ct2r))/wrdn);
 
-    spd[0] = std::min( wli[IVX]-cfl, wri[IVX]-cfr );
-    spd[4] = std::max( wli[IVX]+cfl, wri[IVX]+cfr );
+    Real spd0 = std::min( wlvx-cfl, wrvx-cfr );
+    Real spd4 = std::max( wlvx+cfl, wrvx+cfr );
 
-    // Real cfmax = std::max(cfl,cfr);
-    // if (wli[IVX] <= wri[IVX]) {
-    //   spd[0] = wli[IVX] - cfmax;
-    //   spd[4] = wri[IVX] + cfmax;
-    // } else {
-    //   spd[0] = wri[IVX] - cfmax;
-    //   spd[4] = wli[IVX] + cfmax;
-    // }
-
-    //--- Step 3.  Compute L/R fluxes
-
-    Real ptl = wli[IPR] + pbl; // total pressures L,R
-    Real ptr = wri[IPR] + pbr;
-
-    fl.d  = ul.mx;
-    fl.mx = ul.mx*wli[IVX] + ptl - bxsq;
-    fl.my = ul.my*wli[IVX] - bxi*ul.by;
-    fl.mz = ul.mz*wli[IVX] - bxi*ul.bz;
-    fl.e  = wli[IVX]*(ul.e + ptl - bxsq) - bxi*(wli[IVY]*ul.by + wli[IVZ]*ul.bz);
-    fl.by = ul.by*wli[IVX] - bxi*wli[IVY];
-    fl.bz = ul.bz*wli[IVX] - bxi*wli[IVZ];
-
-    fr.d  = ur.mx;
-    fr.mx = ur.mx*wri[IVX] + ptr - bxsq;
-    fr.my = ur.my*wri[IVX] - bxi*ur.by;
-    fr.mz = ur.mz*wri[IVX] - bxi*ur.bz;
-    fr.e  = wri[IVX]*(ur.e + ptr - bxsq) - bxi*(wri[IVY]*ur.by + wri[IVZ]*ur.bz);
-    fr.by = ur.by*wri[IVX] - bxi*wri[IVY];
-    fr.bz = ur.bz*wri[IVX] - bxi*wri[IVZ];
+    Real ptl = wlpr + pbl; // total pressurens L,R
+    Real ptr = wrpr + pbr;
 
     //--- Step 4.  Compute middle and Alfven wave speeds
 
-    Real sdl = spd[0] - wli[IVX];  // S_i-u_i (i=L or R)
-    Real sdr = spd[4] - wri[IVX];
+    Real sdl = spd0 - wlvx;  // S_i-u_i (i=L or R)
+    Real sdr = spd4 - wrvx;
+
+    Real ulmx = wlvx*uldn;
+    Real ulmy = wlvy*uldn;
+    Real ulmz = wlvz*uldn;
+    Real ulen = wlpr*igm1 + kel + pbl;
+    Real ulby = wlby;
+    Real ulbz = wlbz;
+    Real urmx = wrvx*urdn;
+    Real urmy = wrvy*urdn;
+    Real urmz = wrvz*urdn;
+    Real uren = wrpr*igm1 + ker + pbr;
+    Real urby = wrby;
+    Real urbz = wrbz;
+    Real udnsdl = uldn*sdl;
+    Real udnsdr = urdn*sdr;
 
     // S_M: eqn (38) of Miyoshi & Kusano
     // (KGF): group ptl, ptr terms for floating-point associativity symmetry
-    spd[2] = (sdr*ur.mx - sdl*ul.mx + (ptl - ptr))/(sdr*ur.d - sdl*ul.d);
+    Real spd2 = (sdr*urmx - sdl*ulmx + (ptl - ptr))/(udnsdr - udnsdl);
 
-    Real sdml   = spd[0] - spd[2];  // S_i-S_M (i=L or R)
-    Real sdmr   = spd[4] - spd[2];
-    Real sdml_inv = 1.0/sdml;
-    Real sdmr_inv = 1.0/sdmr;
-    // eqn (43) of Miyoshi & Kusano
-    ulst.d = ul.d * sdl * sdml_inv;
-    urst.d = ur.d * sdr * sdmr_inv;
-    Real ulst_d_inv = 1.0/ulst.d;
-    Real urst_d_inv = 1.0/urst.d;
-    Real sqrtdl = std::sqrt(ulst.d);
-    Real sqrtdr = std::sqrt(urst.d);
-
-    // eqn (51) of Miyoshi & Kusano
-    spd[1] = spd[2] - std::abs(bxi)/sqrtdl;
-    spd[3] = spd[2] + std::abs(bxi)/sqrtdr;
-
-    //--- Step 5.  Compute intermediate states
     // eqn (23) explicitly becomes eq (41) of Miyoshi & Kusano
     // TODO(felker): place an assertion that ptstl==ptstr
-    Real ptstl = ptl + ul.d*sdl*(spd[2]-wli[IVX]);
-    Real ptstr = ptr + ur.d*sdr*(spd[2]-wri[IVX]);
-    // Real ptstl = ptl + ul.d*sdl*(sdl-sdml); // these equations had issues when averaged
-    // Real ptstr = ptr + ur.d*sdr*(sdr-sdmr);
-    Real ptst = 0.5*(ptstr + ptstl);  // total pressure (star state)
+    Real ptstl = ptl + udnsdl*(spd2-wlvx);
+    Real ptstr = ptr + udnsdr*(spd2-wrvx);
+    Real ptst = 0.5*(ptstr + ptstl);  // total pressuren (star state)
 
-    // ul* - eqn (39) of M&K
-    ulst.mx = ulst.d * spd[2];
-    if (std::abs(ul.d*sdl*sdml-bxsq) < (SMALL_NUMBER)*ptst) {
-      // Degenerate case
-      ulst.my = ulst.d * wli[IVY];
-      ulst.mz = ulst.d * wli[IVZ];
-
-      ulst.by = ul.by;
-      ulst.bz = ul.bz;
+    Real umx, umy, umz, wvx, wvy, wvz, wpt, uen, uby, ubz;
+    if (spd0 >= 0.0) {
+      umx = ulmx;
+      umy = ulmy;
+      umz = ulmz;
+      wvx = wlvx;
+      wvy = wlvy;
+      wvz = wlvz;
+      wpt = ptl;
+      uen = ulen;
+      uby = ulby;
+      ubz = ulbz;
+    } else if (spd4 <= 0.0) {
+      umx = urmx;
+      umy = urmy;
+      umz = urmz;
+      wvx = wrvx;
+      wvy = wrvy;
+      wvz = wrvz;
+      wpt = ptr;
+      uen = uren;
+      uby = urby;
+      ubz = urbz;
     } else {
-      // eqns (44) and (46) of M&K
-      Real tmp = bxi*(sdl - sdml)/(ul.d*sdl*sdml - bxsq);
-      ulst.my = ulst.d * (wli[IVY] - ul.by*tmp);
-      ulst.mz = ulst.d * (wli[IVZ] - ul.bz*tmp);
+      // intermediate states
+      Real sdml   = spd0 - spd2;  // S_i-S_M (i=L or R)
+      Real sdmr   = spd4 - spd2;
+      Real sdml_inv = 1.0/sdml;
+      Real sdmr_inv = 1.0/sdmr;
+      Real ulstdn = udnsdl * sdml_inv;
+      Real urstdn = udnsdr * sdmr_inv;
+      Real sqrtdl = std::sqrt(ulstdn);
+      Real sqrtdr = std::sqrt(urstdn);
+      Real spd1 = spd2 - std::abs(bxi)/sqrtdl;
+      Real spd3 = spd2 + std::abs(bxi)/sqrtdr;
+      wpt = ptst;
 
-      // eqns (45) and (47) of M&K
-      tmp = (ul.d*SQR(sdl) - bxsq)/(ul.d*sdl*sdml - bxsq);
-      ulst.by = ul.by * tmp;
-      ulst.bz = ul.bz * tmp;
-    }
-    // v_i* dot B_i*
-    // (KGF): group transverse momenta terms for floating-point associativity symmetry
-    Real vbstl = (ulst.mx*bxi+(ulst.my*ulst.by+ulst.mz*ulst.bz))*ulst_d_inv;
-    // eqn (48) of M&K
-    // (KGF): group transverse by, bz terms for floating-point associativity symmetry
-    ulst.e = (sdl*ul.e - ptl*wli[IVX] + ptst*spd[2] +
-              bxi*(wli[IVX]*bxi + (wli[IVY]*ul.by + wli[IVZ]*ul.bz) - vbstl))*sdml_inv;
+      // calculate Ul*, Ur* and Fl*, Fr*
+      Real ulstmy, ulstmz, ulstby, ulstbz;
+      Real urstmy, urstmz, urstby, urstbz;
+      Real ulstmx = ulstdn * spd2;
+      Real urstmx = urstdn * spd2;
+      Real tmpl = udnsdl*sdml - bxsq;
+      Real tmpr = udnsdr*sdmr - bxsq;
+      if (std::abs(tmpl) < (SMALL_NUMBER)*ptst) {
+        // Degenerate case
+        ulstmy = ulstdn * wlvy;
+        ulstmz = ulstdn * wlvz;
 
-    // ur* - eqn (39) of M&K
-    urst.mx = urst.d * spd[2];
-    if (std::abs(ur.d*sdr*sdmr - bxsq) < (SMALL_NUMBER)*ptst) {
-      // Degenerate case
-      urst.my = urst.d * wri[IVY];
-      urst.mz = urst.d * wri[IVZ];
+        ulstby = ulby;
+        ulstbz = ulbz;
+      } else {
+        // eqns (44) and (46) of M&K
+        Real tmp = bxi*(sdl - sdml)/tmpl;
+        ulstmy = ulstdn * (wlvy - ulby*tmp);
+        ulstmz = ulstdn * (wlvz - ulbz*tmp);
 
-      urst.by = ur.by;
-      urst.bz = ur.bz;
-    } else {
-      // eqns (44) and (46) of M&K
-      Real tmp = bxi*(sdr - sdmr)/(ur.d*sdr*sdmr - bxsq);
-      urst.my = urst.d * (wri[IVY] - ur.by*tmp);
-      urst.mz = urst.d * (wri[IVZ] - ur.bz*tmp);
+        // eqns (45) and (47) of M&K
+        Real tmp2 = (uldn*SQR(sdl) - bxsq)/tmpl;
+        ulstby = ulby * tmp2;
+        ulstbz = ulbz * tmp2;
+      }
+      if (std::abs(tmpr) < (SMALL_NUMBER)*ptst) {
+        // Degenerate case
+        urstmy = urstdn * wrvy;
+        urstmz = urstdn * wrvz;
 
-      // eqns (45) and (47) of M&K
-      tmp = (ur.d*SQR(sdr) - bxsq)/(ur.d*sdr*sdmr - bxsq);
-      urst.by = ur.by * tmp;
-      urst.bz = ur.bz * tmp;
-    }
-    // v_i* dot B_i*
-    // (KGF): group transverse momenta terms for floating-point associativity symmetry
-    Real vbstr = (urst.mx*bxi+(urst.my*urst.by+urst.mz*urst.bz))*urst_d_inv;
-    // eqn (48) of M&K
-    // (KGF): group transverse by, bz terms for floating-point associativity symmetry
-    urst.e = (sdr*ur.e - ptr*wri[IVX] + ptst*spd[2] +
-              bxi*(wri[IVX]*bxi + (wri[IVY]*ur.by + wri[IVZ]*ur.bz) - vbstr))*sdmr_inv;
-    // ul** and ur** - if Bx is near zero, same as *-states
-    if (0.5*bxsq < (SMALL_NUMBER)*ptst) {
-      uldst = ulst;
-      urdst = urst;
-    } else {
-      Real invsumd = 1.0/(sqrtdl + sqrtdr);
-      Real bxsig = (bxi > 0.0 ? 1.0 : -1.0);
+        urstby = urby;
+        urstbz = urbz;
+      } else {
+        // eqns (44) and (46) of M&K
+        Real tmp = bxi*(sdr - sdmr)/tmpr;
+        urstmy = urstdn * (wrvy - urby*tmp);
+        urstmz = urstdn * (wrvz - urbz*tmp);
 
-      uldst.d = ulst.d;
-      urdst.d = urst.d;
+        // eqns (45) and (47) of M&K
+        Real tmp2 = (urdn*SQR(sdr) - bxsq)/tmpr;
+        urstby = urby * tmp2;
+        urstbz = urbz * tmp2;
+      }
+      Real ulst_d_inv = 1.0/ulstdn;
+      Real vbstl = (ulstmx*bxi + (ulstmy*ulstby + ulstmz*ulstbz))*ulst_d_inv;
+      Real ulsten = (sdl*ulen - ptl*wlvx + ptst*spd2 +
+                     bxi*(wlvx*bxi + (wlvy*ulby + wlvz*ulbz) - vbstl))*sdml_inv;
+      Real urst_d_inv = 1.0/urstdn;
+      Real vbstr = (urstmx*bxi+(urstmy*urstby+urstmz*urstbz))*urst_d_inv;
+      Real ursten = (sdr*uren - ptr*wrvx + ptst*spd2 +
+                     bxi*(wrvx*bxi + (wrvy*urby + wrvz*urbz) - vbstr))*sdmr_inv;
+      if (spd1 >= 0.0) {
+        umx = ulstmx;
+        umy = ulstmy;
+        umz = ulstmz;
+        wvx = ulstmx*ulst_d_inv;
+        wvy = ulstmy*ulst_d_inv;
+        wvz = ulstmz*ulst_d_inv;
+        uen = ulsten;
+        uby = ulstby;
+        ubz = ulstbz;
+      } else if (spd3 <= 0.0) {
+        umx = urstmx;
+        umy = urstmy;
+        umz = urstmz;
+        wvx = urstmx*urst_d_inv;
+        wvy = urstmy*urst_d_inv;
+        wvz = urstmz*urst_d_inv;
+        uen = ursten;
+        uby = urstby;
+        ubz = urstbz;
+      } else {
+        // ** states
+        if (0.5*bxsq < (SMALL_NUMBER)*ptst) {
+          if (spd2 > 0.0) {
+            umx = ulstmx;
+            umy = ulstmy;
+            umz = ulstmz;
+            wvx = ulstmx*ulst_d_inv;
+            wvy = ulstmy*ulst_d_inv;
+            wvz = ulstmz*ulst_d_inv;
+            uen = ulsten;
+            uby = ulstby;
+            ubz = ulstbz;
+          } else {
+            umx = urstmx;
+            umy = urstmy;
+            umz = urstmz;
+            wvx = urstmx*urst_d_inv;
+            wvy = urstmy*urst_d_inv;
+            wvz = urstmz*urst_d_inv;
+            uen = ursten;
+            uby = urstby;
+            ubz = urstbz;
+          }
+        } else {
+          Real invsumd = 1.0/(sqrtdl + sqrtdr);
+          Real bxsig = (bxi > 0.0 ? 1.0 : -1.0);
+          Real udstdn;
+          if (spd2 > 0.0) {
+            udstdn = ulstdn;
+            umx = ulstmx;
+          } else {
+            udstdn = urstdn;
+            umx = urstmx;
+          }
 
-      uldst.mx = ulst.mx;
-      urdst.mx = urst.mx;
+          wvx = umx/udstdn;
 
-      // eqn (59) of M&K
-      Real tmp = invsumd*(sqrtdl*(ulst.my*ulst_d_inv) + sqrtdr*(urst.my*urst_d_inv) +
-                          bxsig*(urst.by - ulst.by));
-      uldst.my = uldst.d * tmp;
-      urdst.my = urdst.d * tmp;
+          // eqn (59) of M&K
+          wvy = invsumd*(sqrtdl*(ulstmy*ulst_d_inv) + sqrtdr*(urstmy*urst_d_inv) +
+                         bxsig*(urstby - ulstby));
+          umy = udstdn * wvy;
 
-      // eqn (60) of M&K
-      tmp = invsumd*(sqrtdl*(ulst.mz*ulst_d_inv) + sqrtdr*(urst.mz*urst_d_inv) +
-                     bxsig*(urst.bz - ulst.bz));
-      uldst.mz = uldst.d * tmp;
-      urdst.mz = urdst.d * tmp;
+          // eqn (60) of M&K
+          wvz = invsumd*(sqrtdl*(ulstmz*ulst_d_inv) + sqrtdr*(urstmz*urst_d_inv) +
+                         bxsig*(urstbz - ulstbz));
+          umz = udstdn * wvz;
 
-      // eqn (61) of M&K
-      tmp = invsumd*(sqrtdl*urst.by + sqrtdr*ulst.by +
-                     bxsig*sqrtdl*sqrtdr*((urst.my*urst_d_inv) - (ulst.my*ulst_d_inv)));
-      uldst.by = urdst.by = tmp;
+          // eqn (61) of M&K
+          uby = invsumd*(sqrtdl*urstby + sqrtdr*ulstby +
+                bxsig*sqrtdl*sqrtdr*((urstmy*urst_d_inv) - (ulstmy*ulst_d_inv)));
 
-      // eqn (62) of M&K
-      tmp = invsumd*(sqrtdl*urst.bz + sqrtdr*ulst.bz +
-                     bxsig*sqrtdl*sqrtdr*((urst.mz*urst_d_inv) - (ulst.mz*ulst_d_inv)));
-      uldst.bz = urdst.bz = tmp;
+          // eqn (62) of M&K
+          ubz = invsumd*(sqrtdl*urstbz + sqrtdr*ulstbz +
+                bxsig*sqrtdl*sqrtdr*((urstmz*urst_d_inv) - (ulstmz*ulst_d_inv)));
 
-      // eqn (63) of M&K
-      tmp = spd[2]*bxi + (uldst.my*uldst.by + uldst.mz*uldst.bz)/uldst.d;
-      uldst.e = ulst.e - sqrtdl*bxsig*(vbstl - tmp);
-      urdst.e = urst.e + sqrtdr*bxsig*(vbstr - tmp);
-    }
-
-    //--- Step 6.  Compute flux
-    uldst.d = spd[1] * (uldst.d - ulst.d);
-    uldst.mx = spd[1] * (uldst.mx - ulst.mx);
-    uldst.my = spd[1] * (uldst.my - ulst.my);
-    uldst.mz = spd[1] * (uldst.mz - ulst.mz);
-    uldst.e = spd[1] * (uldst.e - ulst.e);
-    uldst.by = spd[1] * (uldst.by - ulst.by);
-    uldst.bz = spd[1] * (uldst.bz - ulst.bz);
-
-    ulst.d = spd[0] * (ulst.d - ul.d);
-    ulst.mx = spd[0] * (ulst.mx - ul.mx);
-    ulst.my = spd[0] * (ulst.my - ul.my);
-    ulst.mz = spd[0] * (ulst.mz - ul.mz);
-    ulst.e = spd[0] * (ulst.e - ul.e);
-    ulst.by = spd[0] * (ulst.by - ul.by);
-    ulst.bz = spd[0] * (ulst.bz - ul.bz);
-
-    urdst.d = spd[3] * (urdst.d - urst.d);
-    urdst.mx = spd[3] * (urdst.mx - urst.mx);
-    urdst.my = spd[3] * (urdst.my - urst.my);
-    urdst.mz = spd[3] * (urdst.mz - urst.mz);
-    urdst.e = spd[3] * (urdst.e - urst.e);
-    urdst.by = spd[3] * (urdst.by - urst.by);
-    urdst.bz = spd[3] * (urdst.bz - urst.bz);
-
-    urst.d = spd[4] * (urst.d  - ur.d);
-    urst.mx = spd[4] * (urst.mx - ur.mx);
-    urst.my = spd[4] * (urst.my - ur.my);
-    urst.mz = spd[4] * (urst.mz - ur.mz);
-    urst.e = spd[4] * (urst.e - ur.e);
-    urst.by = spd[4] * (urst.by - ur.by);
-    urst.bz = spd[4] * (urst.bz - ur.bz);
-
-    if (spd[0] >= 0.0) {
-      // return Fl if flow is supersonic
-      flxi[IDN] = fl.d;
-      flxi[IVX] = fl.mx;
-      flxi[IVY] = fl.my;
-      flxi[IVZ] = fl.mz;
-      flxi[IEN] = fl.e;
-      flxi[IBY] = fl.by;
-      flxi[IBZ] = fl.bz;
-    } else if (spd[4] <= 0.0) {
-      // return Fr if flow is supersonic
-      flxi[IDN] = fr.d;
-      flxi[IVX] = fr.mx;
-      flxi[IVY] = fr.my;
-      flxi[IVZ] = fr.mz;
-      flxi[IEN] = fr.e;
-      flxi[IBY] = fr.by;
-      flxi[IBZ] = fr.bz;
-    } else if (spd[1] >= 0.0) {
-      // return Fl*
-      flxi[IDN] = fl.d  + ulst.d;
-      flxi[IVX] = fl.mx + ulst.mx;
-      flxi[IVY] = fl.my + ulst.my;
-      flxi[IVZ] = fl.mz + ulst.mz;
-      flxi[IEN] = fl.e  + ulst.e;
-      flxi[IBY] = fl.by + ulst.by;
-      flxi[IBZ] = fl.bz + ulst.bz;
-    } else if (spd[2] >= 0.0) {
-      // return Fl**
-      flxi[IDN] = fl.d  + ulst.d + uldst.d;
-      flxi[IVX] = fl.mx + ulst.mx + uldst.mx;
-      flxi[IVY] = fl.my + ulst.my + uldst.my;
-      flxi[IVZ] = fl.mz + ulst.mz + uldst.mz;
-      flxi[IEN] = fl.e  + ulst.e + uldst.e;
-      flxi[IBY] = fl.by + ulst.by + uldst.by;
-      flxi[IBZ] = fl.bz + ulst.bz + uldst.bz;
-    } else if (spd[3] > 0.0) {
-      // return Fr**
-      flxi[IDN] = fr.d + urst.d + urdst.d;
-      flxi[IVX] = fr.mx + urst.mx + urdst.mx;
-      flxi[IVY] = fr.my + urst.my + urdst.my;
-      flxi[IVZ] = fr.mz + urst.mz + urdst.mz;
-      flxi[IEN] = fr.e + urst.e + urdst.e;
-      flxi[IBY] = fr.by + urst.by + urdst.by;
-      flxi[IBZ] = fr.bz + urst.bz + urdst.bz;
-    } else {
-      // return Fr*
-      flxi[IDN] = fr.d  + urst.d;
-      flxi[IVX] = fr.mx + urst.mx;
-      flxi[IVY] = fr.my + urst.my;
-      flxi[IVZ] = fr.mz + urst.mz;
-      flxi[IEN] = fr.e  + urst.e;
-      flxi[IBY] = fr.by + urst.by;
-      flxi[IBZ] = fr.bz + urst.bz;
+          // eqn (63) of M&K
+          Real vbdst = spd2*bxi + (wvy*uby + wvz*ubz);
+          if (spd2 > 0.0)
+            uen = ulsten - sqrtdl*bxsig*(vbstl - vbdst);
+          else
+            uen = ursten + sqrtdr*bxsig*(vbstr - vbdst);
+        }
+      }
     }
 
-    flx(IDN,k,j,i) = flxi[IDN];
-    flx(ivx,k,j,i) = flxi[IVX];
-    flx(ivy,k,j,i) = flxi[IVY];
-    flx(ivz,k,j,i) = flxi[IVZ];
-    flx(IEN,k,j,i) = flxi[IEN];
-    ey(k,j,i) = -flxi[IBY];
-    ez(k,j,i) =  flxi[IBZ];
+    fdn[i] = umx;
+    fvx[i] = umx*wvx + wpt - bxsq;
+    fvy[i] = umy*wvx - bxi*uby;
+    fvz[i] = umz*wvx - bxi*ubz;
+    fen[i] = wvx*(uen + wpt - bxsq) - bxi*(wvy*uby + wvz*ubz);
+    eya[i] = -uby*wvx + bxi*wvy;
+    eza[i] =  ubz*wvx - bxi*wvz;
 
-    wct(k,j,i)=GetWeightForCT(flxi[IDN], wli[IDN], wri[IDN], dxw(i), dt);
+    Real v_over_c = (1024.0)* dt * umx / (dxw(i) * (wldn + wrdn));
+    Real tmp_min = std::min(static_cast<Real>(0.5), v_over_c);
+    wcta[i] = 0.5 + std::max(static_cast<Real>(-0.5), tmp_min);
   }
+
+#pragma omp simd
+  for (int i=il; i<=iu; ++i) {
+    flx(IDN,k,j,i) = fdn[i];
+    flx(ivx,k,j,i) = fvx[i];
+    flx(ivy,k,j,i) = fvy[i];
+    flx(ivz,k,j,i) = fvz[i];
+    flx(IEN,k,j,i) = fen[i];
+    ey(k,j,i) =  eya[i];
+    ez(k,j,i) =  eza[i];
+    wct(k,j,i) = wcta[i];
+  }
+
   return;
 }
