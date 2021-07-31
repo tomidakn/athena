@@ -184,8 +184,9 @@ bool CellCenteredBoundaryVariable::ReceiveShearingBoxBoundaryBuffers() {
           } else { // MPI boundary
 #ifdef MPI_PARALLEL
             int test;
-            MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &test,
-                       MPI_STATUS_IGNORE);
+            if (MPI_IPROBE_ENABLED)
+              MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &test,
+                         MPI_STATUS_IGNORE);
             MPI_Test(&shear_bd_var_[upper].req_recv[n], &test, MPI_STATUS_IGNORE);
             if (!static_cast<bool>(test)) {
               flag[upper] = false;

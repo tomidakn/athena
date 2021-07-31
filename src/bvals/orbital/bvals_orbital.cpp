@@ -672,8 +672,9 @@ bool OrbitalBoundaryCommunication::ReceiveBoundaryBuffersCC() {
         } else { // MPI
 #ifdef MPI_PARALLEL
           int test;
-          MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &test,
-                     MPI_STATUS_IGNORE);
+          if (MPI_IPROBE_ENABLED)
+            MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &test,
+                       MPI_STATUS_IGNORE);
           MPI_Test(&orbital_bd_cc_[upper].req_recv[n], &test, MPI_STATUS_IGNORE);
           if (!static_cast<bool>(test)) {
             flag[upper] = false;
@@ -812,8 +813,9 @@ bool OrbitalBoundaryCommunication::ReceiveBoundaryBuffersFC() {
         } else { // MPI
 #ifdef MPI_PARALLEL
           int test;
-          MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &test,
-                     MPI_STATUS_IGNORE);
+          if (MPI_IPROBE_ENABLED)
+            MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &test,
+                       MPI_STATUS_IGNORE);
           MPI_Test(&orbital_bd_fc_[upper].req_recv[n], &test, MPI_STATUS_IGNORE);
           if (!static_cast<bool>(test)) {
             flag[upper] = false;

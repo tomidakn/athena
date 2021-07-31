@@ -64,30 +64,24 @@ class EquationOfState {
 
   // pass k, j, i to following 2x functions even though x1-sliced input array is expected
   // in order to accomodate position-dependent floors
-#pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this,prim,k,j) linear(i)
   void ApplyPrimitiveFloors(AthenaArray<Real> &prim, int k, int j, int i);
 
-#pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this,s,n,k,j) linear(i)
   void ApplyPassiveScalarFloors(AthenaArray<Real> &s, int n, int k, int j, int i);
 
-#pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this,s,w,r,n,k,j) linear(i)
   void ApplyPassiveScalarPrimitiveConservedFloors(
     AthenaArray<Real> &s, const AthenaArray<Real> &w, AthenaArray<Real> &r,
     int n, int k, int j, int i);
 
   // Sound speed functions in different regimes
 #if !RELATIVISTIC_DYNAMICS  // Newtonian: SR, GR defined as no-op
-#pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this)
   Real SoundSpeed(const Real prim[(NHYDRO)]);
   // Define flooring function for fourth-order EOS as no-op for SR, GR regimes
-#pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this,prim,cons,bcc,k,j) linear(i)
   void ApplyPrimitiveConservedFloors(
       AthenaArray<Real> &prim, AthenaArray<Real> &cons, AthenaArray<Real> &bcc,
       int k, int j, int i);
 #if !MAGNETIC_FIELDS_ENABLED  // Newtonian hydro: Newtonian MHD defined as no-op
   Real FastMagnetosonicSpeed(const Real[], const Real) {return 0.0;}
 #else  // Newtonian MHD
-#pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this)
   Real FastMagnetosonicSpeed(const Real prim[(NWAVE)], const Real bx);
 #endif  // !MAGNETIC_FIELDS_ENABLED
   void SoundSpeedsSR(Real, Real, Real, Real, Real *, Real *) {return;}
@@ -102,7 +96,6 @@ class EquationOfState {
       AthenaArray<Real> &, AthenaArray<Real> &, AthenaArray<Real> &,
       int, int, int) {return;}
 #if !MAGNETIC_FIELDS_ENABLED  // SR hydro: SR MHD defined as no-op
-#pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this)
   void SoundSpeedsSR(Real rho_h, Real pgas, Real vx, Real gamma_lorentz_sq,
                      Real *plambda_plus, Real *plambda_minus);
   void FastMagnetosonicSpeedsGR(Real, Real, Real, Real, Real, Real, Real, Real,
@@ -122,10 +115,8 @@ class EquationOfState {
       AthenaArray<Real> &, AthenaArray<Real> &, AthenaArray<Real> &,
       int, int, int) {return;}
 #if !MAGNETIC_FIELDS_ENABLED  // GR hydro: GR+SR MHD defined as no-op
-#pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this)
   void SoundSpeedsSR(Real rho_h, Real pgas, Real vx, Real gamma_lorentz_sq,
                      Real *plambda_plus, Real *plambda_minus);
-#pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this)
   void SoundSpeedsGR(Real rho_h, Real pgas, Real u0, Real u1,
                      Real g00, Real g01, Real g11,
                      Real *plambda_plus, Real *plambda_minus);
@@ -135,7 +126,6 @@ class EquationOfState {
   void SoundSpeedsSR(Real, Real, Real, Real, Real *, Real *) {return;}
   void SoundSpeedsGR(Real, Real, Real, Real, Real, Real, Real, Real *, Real *)
   {return;}
-#pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this)
   void FastMagnetosonicSpeedsGR(Real wgas, Real pgas, Real u0, Real u1, Real b_sq,
                                 Real g00, Real g01, Real g11,
                                 Real *p_lambda_plus, Real *p_lambda_minus);

@@ -707,7 +707,8 @@ bool MGBoundaryValues::ReceiveMultigridBoundaryBuffers(BoundaryQuantity type,
 #ifdef MPI_PARALLEL
       else { // NOLINT
         int test;
-        MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, mgcomm_, &test, MPI_STATUS_IGNORE);
+        if (MPI_IPROBE_ENABLED)
+          MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, mgcomm_, &test, MPI_STATUS_IGNORE);
         MPI_Test(&(bdata_.req_recv[nb.bufid]), &test, MPI_STATUS_IGNORE);
         if (!static_cast<bool>(test)) {
           bflag = false;

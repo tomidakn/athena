@@ -223,6 +223,7 @@ cxx_choices = [
     'clang++',
     'clang++-simd',
     'clang++-apple',
+    'a64fx',
 ]
 
 
@@ -566,6 +567,14 @@ if args['cxx'] == 'clang++-apple':
     makefile_options['COMPILER_FLAGS'] = '-O3 -std=c++11'
     makefile_options['LINKER_FLAGS'] = ''
     makefile_options['LIBRARY_FLAGS'] = ''
+if args['cxx'] == 'a64fx':
+    # Fugaku A64fx (clang mode)
+    definitions['COMPILER_CHOICE'] = 'a64fx'
+    definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'FCCpx'
+    makefile_options['PREPROCESSOR_FLAGS'] = ''
+    makefile_options['COMPILER_FLAGS'] = '-Nclang -std=c++11 -Ofast -ffj-preex -flto -fopenmp-simd'
+    makefile_options['LINKER_FLAGS'] = ''
+    makefile_options['LIBRARY_FLAGS'] = ''
 
 # -float argument
 if args['float']:
@@ -590,6 +599,8 @@ if args['debug']:
         makefile_options['COMPILER_FLAGS'] = '-O0 -g -qlanglvl=extended0x'
     if args['cxx'] == 'icpc-phi':
         makefile_options['COMPILER_FLAGS'] = '-O0 --std=c++11 -g -xMIC-AVX512'
+    if args['cxx'] == 'a64fx':
+        makefile_options['COMPILER_FLAGS'] = '-Nclang -O0 -std=c++11 -Ofast'
 else:
     definitions['DEBUG_OPTION'] = 'NOT_DEBUG'
 
@@ -636,6 +647,7 @@ else:
 # -mpi argument
 if args['mpi']:
     definitions['MPI_OPTION'] = 'MPI_PARALLEL'
+    definitions['MPI_IPROBE'] = '1'
     if (args['cxx'] == 'g++' or args['cxx'] == 'icpc' or args['cxx'] == 'icpc-debug'
             or args['cxx'] == 'icpx'
             or args['cxx'] == 'icpc-phi' or args['cxx'] == 'g++-simd'
@@ -646,11 +658,15 @@ if args['mpi']:
         makefile_options['COMPILER_FLAGS'] += ' -h mpi1'
     if args['cxx'] == 'bgxlc++':
         definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'mpixlcxx'  # noqa
+    if args['cxx'] == 'a64fx':
+        definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'mpiFCCpx'  # noqa
+        definitions['MPI_IPROBE'] = '0'
     # --mpiccmd=[name] argument
     if args['mpiccmd'] is not None:
         definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = args['mpiccmd']  # noqa
 else:
     definitions['MPI_OPTION'] = 'NOT_MPI_PARALLEL'
+    definitions['MPI_IPROBE'] = '1' # this is not used anyway
 
 # -omp argument
 if args['omp']:
@@ -673,6 +689,8 @@ if args['omp']:
         definitions['COMPILER_COMMAND'] += '_r'
         makefile_options['COMPILER_COMMAND'] += '_r'
         makefile_options['COMPILER_FLAGS'] += ' -qsmp'
+    if args['cxx'] == 'a64fx':
+        makefile_options['COMPILER_FLAGS'] += ' -fopenmp'
 else:
     definitions['OPENMP_OPTION'] = 'NOT_OPENMP_PARALLEL'
     if args['cxx'] == 'cray':
