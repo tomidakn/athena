@@ -174,7 +174,7 @@ parser.add_argument('-omp',
 # --grav=[name] argument
 parser.add_argument('--grav',
                     default='none',
-                    choices=['none', 'fft'],
+                    choices=['none', 'fft', 'mg'],
                     help='select self-gravity solver')
 
 # -fft argument
