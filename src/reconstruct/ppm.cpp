@@ -76,7 +76,7 @@ void Reconstruction::PiecewiseParabolicX1(
     }
   }
   if (MAGNETIC_FIELDS_ENABLED) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=il; i<=iu; ++i) {
       bx(i) = bcc(IB1,k,j,i);
 
@@ -376,7 +376,7 @@ void Reconstruction::PiecewiseParabolicX2(
     }
   }
   if (MAGNETIC_FIELDS_ENABLED) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=il; i<=iu; ++i) {
       bx(i) = bcc(IB2,k,j,i);
 
@@ -674,7 +674,7 @@ void Reconstruction::PiecewiseParabolicX3(
     }
   }
   if (MAGNETIC_FIELDS_ENABLED) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=il; i<=iu; ++i) {
       bx(i) = bcc(IB3,k,j,i);
 

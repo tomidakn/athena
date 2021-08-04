@@ -137,21 +137,26 @@ void HydroDiffusion::AddDiffusionEnergyFlux(AthenaArray<Real> *flux_src,
   AthenaArray<Real> &x2diflx = flux_src[X2DIR];
   AthenaArray<Real> &x3diflx = flux_src[X3DIR];
 
+  // assume this is only for 3D
   for (int k=ks; k<=ke; ++k) {
     for (int j=js; j<=je; ++j) {
 #pragma omp simd
-      for (int i=is; i<=ie; ++i) {
+      for (int i=is; i<=ie+1; ++i)
         x1flux(IEN,k,j,i) += x1diflx(k,j,i);
-        if (i == ie) x1flux(IEN,k,j,i+1) += x1diflx(k,j,i+1);
-        if (pmb_->block_size.nx2 > 1) {
-          x2flux(IEN,k,j,i) += x2diflx(k,j,i);
-          if (j == je) x2flux(IEN,k,j+1,i) += x2diflx(k,j+1,i);
-        }
-        if (pmb_->block_size.nx3 > 1) {
-          x3flux(IEN,k,j,i) += x3diflx(k,j,i);
-          if (k == ke) x3flux(IEN,k+1,j,i) += x3diflx(k+1,j,i);
-        }
-      }
+    }
+  }
+  for (int k=ks; k<=ke; ++k) {
+    for (int j=js; j<=je+1; ++j) {
+#pragma omp simd
+      for (int i=is; i<=ie; ++i)
+        x2flux(IEN,k,j,i) += x2diflx(k,j,i);
+    }
+  }
+  for (int k=ks; k<=ke+1; ++k) {
+    for (int j=js; j<=je; ++j) {
+#pragma omp simd
+      for (int i=is; i<=ie; ++i)
+        x3flux(IEN,k,j,i) += x3diflx(k,j,i);
     }
   }
 
