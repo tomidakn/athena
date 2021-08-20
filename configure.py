@@ -739,7 +739,7 @@ if args['hdf5']:
             or args['cxx'] == 'icpx'
             or args['cxx'] == 'icpc-debug' or args['cxx'] == 'icpc-phi'
             or args['cxx'] == 'clang++' or args['cxx'] == 'clang++-simd'
-            or args['cxx'] == 'clang++-apple'):
+            or args['cxx'] == 'clang++-apple' or args['cxx'] == 'a64fx'):
         makefile_options['LIBRARY_FLAGS'] += ' -lhdf5'
     if args['cxx'] == 'bgxlc++':
         makefile_options['PREPROCESSOR_FLAGS'] += (
