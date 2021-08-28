@@ -209,19 +209,19 @@ void FieldDiffusion::OhmicEMF(const FaceField &b, const AthenaArray<Real> &bc,
   // 3D update:
   for (int k=ks; k<=ke+1; ++k) {
     for (int j=js; j<=je+1; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+#pragma fj loop loop_fission_target
+#pragma fj loop loop_fission_threshold 1
       for (int i=is; i<=ie+1; ++i) {
-        Real eta_O = 0.25*(etaB(ohmic,k  ,j,i) + etaB(ohmic,k  ,j-1,i)
-                           + etaB(ohmic,k-1,j,i) + etaB(ohmic,k-1,j-1,i));
-        e1(k,j,i) += eta_O * J1(k,j,i);
-
-        eta_O = 0.25*(etaB(ohmic,k  ,j,i) + etaB(ohmic,k  ,j,i-1)
-                      + etaB(ohmic,k-1,j,i) + etaB(ohmic,k-1,j,i-1));
-        e2(k,j,i) += eta_O * J2(k,j,i);
-
-        eta_O = 0.25*(etaB(ohmic,k,j  ,i) + etaB(ohmic,k,j  ,i-1)
-                      + etaB(ohmic,k,j-1,i) + etaB(ohmic,k,j-1,i-1));
-        e3(k,j,i) += eta_O * J3(k,j,i);
+        Real eta_O1 = 0.25*(etaB(ohmic,k  ,j,i) + etaB(ohmic,k  ,j-1,i)
+                          + etaB(ohmic,k-1,j,i) + etaB(ohmic,k-1,j-1,i));
+        e1(k,j,i) += eta_O1 * J1(k,j,i);
+        Real eta_O2 = 0.25*(etaB(ohmic,k  ,j,i) + etaB(ohmic,k  ,j,i-1)
+                          + etaB(ohmic,k-1,j,i) + etaB(ohmic,k-1,j,i-1));
+        e2(k,j,i) += eta_O2 * J2(k,j,i);
+        Real eta_O3 = 0.25*(etaB(ohmic,k,j  ,i) + etaB(ohmic,k,j  ,i-1)
+                          + etaB(ohmic,k,j-1,i) + etaB(ohmic,k,j-1,i-1));
+        e3(k,j,i) += eta_O3 * J3(k,j,i);
       }
     }
   }
@@ -329,67 +329,69 @@ void FieldDiffusion::AmbipolarEMF(const FaceField &b, const AthenaArray<Real> &b
   // 3D update:
   for (int k=ks; k<=ke+1; ++k) {
     for (int j=js; j<=je+1; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+#pragma fj loop loop_fission_target
+#pragma fj loop loop_fission_threshold 1
       for (int i=is; i<=ie+1; ++i) {
         // emf.x
-        Real eta_A = 0.25*(etaB(ambipolar,k  ,j,i) + etaB(ambipolar,k  ,j-1,i)
-                           + etaB(ambipolar,k-1,j,i) + etaB(ambipolar,k-1,j-1,i));
+        Real eta_A1 = 0.25*(etaB(ambipolar,k  ,j,i) + etaB(ambipolar,k  ,j-1,i)
+                          + etaB(ambipolar,k-1,j,i) + etaB(ambipolar,k-1,j-1,i));
 
-        Real intJx = J1(k,j,i);
-        Real intJy = 0.25*(J2(k,j,  i) + J2(k,j,  i+1)
+        Real intJx1 = J1(k,j,i);
+        Real intJy1 = 0.25*(J2(k,j,  i) + J2(k,j,  i+1)
                            +J2(k,j-1,i) + J2(k,j-1,i+1));
-        Real intJz = 0.25*(J3(k  ,j,i)   + J3(k  ,j,i+1)
+        Real intJz1 = 0.25*(J3(k  ,j,i)   + J3(k  ,j,i+1)
                            +J3(k-1,j,i)   + J3(k-1,j,i+1));
 
-        Real intBx = 0.25*(bc(IB1,k  ,j,i)+bc(IB1,k  ,j-1,i)
+        Real intBx1 = 0.25*(bc(IB1,k  ,j,i)+bc(IB1,k  ,j-1,i)
                            +bc(IB1,k-1,j,i)+bc(IB1,k-1,j-1,i));
-        Real intBy = 0.5*(b.x2f(k,j,i) + b.x2f(k-1,j,i));
-        Real intBz = 0.5*(b.x3f(k,j,i) + b.x3f(k,j-1,i));
+        Real intBy1 = 0.5*(b.x2f(k,j,i) + b.x2f(k-1,j,i));
+        Real intBz1 = 0.5*(b.x3f(k,j,i) + b.x3f(k,j-1,i));
 
-        Real Bsq   = SQR(intBx) + SQR(intBy) + SQR(intBz) + TINY_NUMBER;
-        Real JdotB = intJx*intBx + intJy*intBy + intJz*intBz;
+        Real Bsq1   = SQR(intBx1) + SQR(intBy1) + SQR(intBz1) + TINY_NUMBER;
+        Real JdotB1 = intJx1*intBx1 + intJy1*intBy1 + intJz1*intBz1;
 
-        e1(k,j,i) += eta_A * (J1(k,j,i) - JdotB*intBx/Bsq);
+        e1(k,j,i) += eta_A1 * (J1(k,j,i) - JdotB1*intBx1/Bsq1);
 
         // emf.y
-        eta_A = 0.25*(etaB(ambipolar,k  ,j,i) + etaB(ambipolar,k  ,j,i-1)
-                      + etaB(ambipolar,k-1,j,i) + etaB(ambipolar,k-1,j,i-1));
+        Real eta_A2 = 0.25*(etaB(ambipolar,k  ,j,i) + etaB(ambipolar,k  ,j,i-1)
+                          + etaB(ambipolar,k-1,j,i) + etaB(ambipolar,k-1,j,i-1));
 
-        intJx = 0.25*(J1(k,j,  i) + J1(k,j,  i-1)
-                      +J1(k,j+1,i) + J1(k,j+1,i-1));
-        intJy = J2(k,j,i);
-        intJz = 0.25*(J3(k  ,j,i)   + J3(k  ,j+1,i)
-                      +J3(k-1,j,i)   + J3(k-1,j+1,i));
+        Real intJx2 = 0.25*(J1(k,j,  i) + J1(k,j,  i-1)
+                           +J1(k,j+1,i) + J1(k,j+1,i-1));
+        Real intJy2 = J2(k,j,i);
+        Real intJz2 = 0.25*(J3(k  ,j,i)   + J3(k  ,j+1,i)
+                           +J3(k-1,j,i)   + J3(k-1,j+1,i));
 
-        intBx = 0.5*(b.x1f(k,j,i) + b.x1f(k-1,j,i));
-        intBy = 0.25*(bc(IB2,k  ,j,i)+bc(IB2,k  ,j,i-1)
-                      +bc(IB2,k-1,j,i)+bc(IB2,k-1,j,i-1));
-        intBz = 0.5*(b.x3f(k,j,i) + b.x3f(k,j,i-1));
+        Real intBx2 = 0.5*(b.x1f(k,j,i) + b.x1f(k-1,j,i));
+        Real intBy2 = 0.25*(bc(IB2,k  ,j,i)+bc(IB2,k  ,j,i-1)
+                           +bc(IB2,k-1,j,i)+bc(IB2,k-1,j,i-1));
+        Real intBz2 = 0.5*(b.x3f(k,j,i) + b.x3f(k,j,i-1));
 
-        Bsq   = SQR(intBx) + SQR(intBy) + SQR(intBz) + TINY_NUMBER;
-        JdotB = intJx*intBx + intJy*intBy + intJz*intBz;
+        Real Bsq2   = SQR(intBx2) + SQR(intBy2) + SQR(intBz2) + TINY_NUMBER;
+        Real JdotB2 = intJx2*intBx2 + intJy2*intBy2 + intJz2*intBz2;
 
-        e2(k,j,i) += eta_A * (J2(k,j,i) - JdotB*intBy/Bsq);
+        e2(k,j,i) += eta_A2 * (J2(k,j,i) - JdotB2*intBy2/Bsq2);
 
         // emf.z
-        eta_A = 0.25*(etaB(ambipolar,k,j  ,i) + etaB(ambipolar,k,j  ,i-1)
-                      + etaB(ambipolar,k,j-1,i) + etaB(ambipolar,k,j-1,i-1));
+        Real eta_A3 = 0.25*(etaB(ambipolar,k,j  ,i) + etaB(ambipolar,k,j  ,i-1)
+                          + etaB(ambipolar,k,j-1,i) + etaB(ambipolar,k,j-1,i-1));
 
-        intJx = 0.25*(J1(k  ,j,i) + J1(k  ,j,i-1)
-                      +J1(k+1,j,i) + J1(k+1,j,i-1));
-        intJy = 0.25*(J2(k  ,j,i) + J2(k  ,j-1,i)
-                      +J2(k+1,j,i) + J2(k+1,j-1,i));
-        intJz = J3(k,j,i);
+        Real intJx3 = 0.25*(J1(k  ,j,i) + J1(k  ,j,i-1)
+                           +J1(k+1,j,i) + J1(k+1,j,i-1));
+        Real intJy3 = 0.25*(J2(k  ,j,i) + J2(k  ,j-1,i)
+                           +J2(k+1,j,i) + J2(k+1,j-1,i));
+        Real intJz3 = J3(k,j,i);
 
-        intBx = 0.5*(b.x1f(k,j,i) + b.x1f(k,j-1,i));
-        intBy = 0.5*(b.x2f(k,j,i) + b.x2f(k,j,i-1));
-        intBz = 0.25*(bc(IB3,k,j  ,i)+bc(IB3,k,j  ,i-1)
-                      +bc(IB3,k,j-1,i)+bc(IB3,k,j-1,i-1));
+        Real intBx3 = 0.5*(b.x1f(k,j,i) + b.x1f(k,j-1,i));
+        Real intBy3 = 0.5*(b.x2f(k,j,i) + b.x2f(k,j,i-1));
+        Real intBz3 = 0.25*(bc(IB3,k,j  ,i)+bc(IB3,k,j  ,i-1)
+                           +bc(IB3,k,j-1,i)+bc(IB3,k,j-1,i-1));
 
-        Bsq   = SQR(intBx) + SQR(intBy) + SQR(intBz) + TINY_NUMBER;
-        JdotB = intJx*intBx + intJy*intBy + intJz*intBz;
+        Real Bsq3   = SQR(intBx3) + SQR(intBy3) + SQR(intBz3) + TINY_NUMBER;
+        Real JdotB3 = intJx3*intBx3 + intJy3*intBy3 + intJz3*intBz3;
 
-        e3(k,j,i) += eta_A * (J3(k,j,i) - JdotB*intBz/Bsq);
+        e3(k,j,i) += eta_A3 * (J3(k,j,i) - JdotB3*intBz3/Bsq3);
       }
     }
   }
