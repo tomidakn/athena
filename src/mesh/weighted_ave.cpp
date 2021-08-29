@@ -42,7 +42,7 @@ void MeshBlock::WeightedAve(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
       for (int n=0; n<=nu; ++n) {
         for (int k=ks; k<=ke; ++k) {
           for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
             for (int i=is; i<=ie; ++i) {
               u_out(n,k,j,i) += wght[1]*u_in1(n,k,j,i) + wght[2]*u_in2(n,k,j,i)
                                 + wght[3]*u_in3(n,k,j,i) + wght[4]*u_in4(n,k,j,i);
@@ -55,7 +55,7 @@ void MeshBlock::WeightedAve(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
         for (int n=0; n<=nu; ++n) {
           for (int k=ks; k<=ke; ++k) {
             for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
               for (int i=is; i<=ie; ++i) {
                 u_out(n,k,j,i) += wght[1]*u_in1(n,k,j,i) + wght[2]*u_in2(n,k,j,i)
                                   + wght[3]*u_in3(n,k,j,i);
@@ -68,7 +68,7 @@ void MeshBlock::WeightedAve(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
           for (int n=0; n<=nu; ++n) {
             for (int k=ks; k<=ke; ++k) {
               for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
                 for (int i=is; i<=ie; ++i) {
                   u_out(n,k,j,i) += wght[1]*u_in1(n,k,j,i) + wght[2]*u_in2(n,k,j,i);
                 }
@@ -80,7 +80,7 @@ void MeshBlock::WeightedAve(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
             for (int n=0; n<=nu; ++n) {
               for (int k=ks; k<=ke; ++k) {
                 for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
                   for (int i=is; i<=ie; ++i) {
                     u_out(n,k,j,i) += wght[1]*u_in1(n,k,j,i);
                   }
@@ -96,7 +96,7 @@ void MeshBlock::WeightedAve(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
       for (int n=0; n<=nu; ++n) {
         for (int k=ks; k<=ke; ++k) {
           for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
             for (int i=is; i<=ie; ++i) {
               u_out(n,k,j,i) = wght[1]*u_in1(n,k,j,i) + wght[2]*u_in2(n,k,j,i)
                                + wght[3]*u_in3(n,k,j,i) + wght[4]*u_in4(n,k,j,i);
@@ -109,7 +109,8 @@ void MeshBlock::WeightedAve(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
         for (int n=0; n<=nu; ++n) {
           for (int k=ks; k<=ke; ++k) {
             for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
               for (int i=is; i<=ie; ++i) {
                 u_out(n,k,j,i) = wght[1]*u_in1(n,k,j,i) + wght[2]*u_in2(n,k,j,i)
                                  + wght[3]*u_in3(n,k,j,i);
@@ -122,7 +123,8 @@ void MeshBlock::WeightedAve(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
           for (int n=0; n<=nu; ++n) {
             for (int k=ks; k<=ke; ++k) {
               for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
                 for (int i=is; i<=ie; ++i) {
                   u_out(n,k,j,i) = wght[1]*u_in1(n,k,j,i) + wght[2]*u_in2(n,k,j,i);
                 }
@@ -135,7 +137,8 @@ void MeshBlock::WeightedAve(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
             for (int n=0; n<=nu; ++n) {
               for (int k=ks; k<=ke; ++k) {
                 for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
                   for (int i=is; i<=ie; ++i) {
                     u_out(n,k,j,i) = u_in1(n,k,j,i);
                   }
@@ -146,7 +149,8 @@ void MeshBlock::WeightedAve(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
             for (int n=0; n<=nu; ++n) {
               for (int k=ks; k<=ke; ++k) {
                 for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
                   for (int i=is; i<=ie; ++i) {
                     u_out(n,k,j,i) = wght[1]*u_in1(n,k,j,i);
                   }
@@ -162,7 +166,8 @@ void MeshBlock::WeightedAve(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
       for (int n=0; n<=nu; ++n) {
         for (int k=ks; k<=ke; ++k) {
           for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
             for (int i=is; i<=ie; ++i) {
               u_out(n,k,j,i) = wght[0]*u_out(n,k,j,i) + wght[1]*u_in1(n,k,j,i)
                                + wght[2]*u_in2(n,k,j,i) + wght[3]*u_in3(n,k,j,i)
@@ -176,7 +181,8 @@ void MeshBlock::WeightedAve(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
         for (int n=0; n<=nu; ++n) {
           for (int k=ks; k<=ke; ++k) {
             for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
               for (int i=is; i<=ie; ++i) {
                 u_out(n,k,j,i) = wght[0]*u_out(n,k,j,i) + wght[1]*u_in1(n,k,j,i)
                                  + wght[2]*u_in2(n,k,j,i) + wght[3]*u_in3(n,k,j,i);
@@ -189,7 +195,8 @@ void MeshBlock::WeightedAve(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
           for (int n=0; n<=nu; ++n) {
             for (int k=ks; k<=ke; ++k) {
               for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
                 for (int i=is; i<=ie; ++i) {
                   u_out(n,k,j,i) = wght[0]*u_out(n,k,j,i) + wght[1]*u_in1(n,k,j,i)
                                + wght[2]*u_in2(n,k,j,i);
@@ -202,7 +209,8 @@ void MeshBlock::WeightedAve(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
             for (int n=0; n<=nu; ++n) {
               for (int k=ks; k<=ke; ++k) {
                 for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
                   for (int i=is; i<=ie; ++i) {
                     u_out(n,k,j,i) = wght[0]*u_out(n,k,j,i) + wght[1]*u_in1(n,k,j,i);
                   }
@@ -213,7 +221,8 @@ void MeshBlock::WeightedAve(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
             for (int n=0; n<=nu; ++n) {
               for (int k=ks; k<=ke; ++k) {
                 for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
                   for (int i=is; i<=ie; ++i) {
                     u_out(n,k,j,i) *= wght[0];
                   }
@@ -254,7 +263,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
       //---- B1
       for (int k=ks; k<=ke; ++k) {
         for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
           for (int i=is; i<=ie+1; ++i) {
             b_out.x1f(k,j,i) += wght[1]*b_in1.x1f(k,j,i) + wght[2]*b_in2.x1f(k,j,i)
                                 + wght[3]*b_in3.x1f(k,j,i) + wght[4]*b_in4.x1f(k,j,i);
@@ -264,7 +274,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
       //---- B2
       for (int k=ks; k<=ke; ++k) {
         for (int j=jl; j<=ju; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
           for (int i=is; i<=ie; ++i) {
             b_out.x2f(k,j,i) += wght[1]*b_in1.x2f(k,j,i) + wght[2]*b_in2.x2f(k,j,i)
                                 + wght[3]*b_in3.x3f(k,j,i) + wght[4]*b_in4.x2f(k,j,i);
@@ -274,7 +285,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
       //---- B3
       for (int k=ks; k<=ke+1; ++k) {
         for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
           for (int i=is; i<=ie; ++i) {
             b_out.x3f(k,j,i) += wght[1]*b_in1.x3f(k,j,i) + wght[2]*b_in2.x3f(k,j,i)
                                 + wght[3]*b_in3.x3f(k,j,i) + wght[4]*b_in4.x3f(k,j,i);
@@ -286,7 +298,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
       //---- B1
         for (int k=ks; k<=ke; ++k) {
           for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
             for (int i=is; i<=ie+1; ++i) {
               b_out.x1f(k,j,i) += wght[1]*b_in1.x1f(k,j,i) + wght[2]*b_in2.x1f(k,j,i)
                                   + wght[3]*b_in3.x1f(k,j,i);
@@ -296,7 +309,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
         //---- B2
         for (int k=ks; k<=ke; ++k) {
           for (int j=jl; j<=ju; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
             for (int i=is; i<=ie; ++i) {
               b_out.x2f(k,j,i) += wght[1]*b_in1.x2f(k,j,i) + wght[2]*b_in2.x2f(k,j,i)
                                    + wght[3]*b_in3.x2f(k,j,i);
@@ -306,7 +320,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
         //---- B3
         for (int k=ks; k<=ke+1; ++k) {
           for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
             for (int i=is; i<=ie; ++i) {
               b_out.x3f(k,j,i) += wght[1]*b_in1.x3f(k,j,i) + wght[2]*b_in2.x3f(k,j,i)
                                   + wght[3]*b_in3.x3f(k,j,i);
@@ -318,7 +333,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
           //---- B1
           for (int k=ks; k<=ke; ++k) {
             for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
               for (int i=is; i<=ie+1; ++i) {
                 b_out.x1f(k,j,i) += wght[1]*b_in1.x1f(k,j,i) + wght[2]*b_in2.x1f(k,j,i);
               }
@@ -327,7 +343,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
           //---- B2
           for (int k=ks; k<=ke; ++k) {
             for (int j=jl; j<=ju; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
               for (int i=is; i<=ie; ++i) {
                 b_out.x2f(k,j,i) += wght[1]*b_in1.x2f(k,j,i) + wght[2]*b_in2.x2f(k,j,i);
               }
@@ -336,7 +353,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
           //---- B3
           for (int k=ks; k<=ke+1; ++k) {
             for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
               for (int i=is; i<=ie; ++i) {
                 b_out.x3f(k,j,i) += wght[1]*b_in1.x3f(k,j,i) + wght[2]*b_in2.x3f(k,j,i);
               }
@@ -347,7 +365,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
             //---- B1
             for (int k=ks; k<=ke; ++k) {
               for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
                 for (int i=is; i<=ie+1; ++i) {
                   b_out.x1f(k,j,i) += wght[1]*b_in1.x1f(k,j,i);
                 }
@@ -356,7 +375,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
             //---- B2
             for (int k=ks; k<=ke; ++k) {
               for (int j=jl; j<=ju; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
                 for (int i=is; i<=ie; ++i) {
                   b_out.x2f(k,j,i) += wght[1]*b_in1.x2f(k,j,i);
                 }
@@ -365,7 +385,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
             //---- B3
             for (int k=ks; k<=ke+1; ++k) {
               for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
                 for (int i=is; i<=ie; ++i) {
                   b_out.x3f(k,j,i) += wght[1]*b_in1.x3f(k,j,i);
                 }
@@ -380,7 +401,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
       //---- B1
       for (int k=ks; k<=ke; ++k) {
         for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
           for (int i=is; i<=ie+1; ++i) {
             b_out.x1f(k,j,i) = wght[1]*b_in1.x1f(k,j,i) + wght[2]*b_in2.x1f(k,j,i)
                                + wght[3]*b_in3.x1f(k,j,i) + wght[4]*b_in4.x1f(k,j,i);
@@ -390,7 +412,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
       //---- B2
       for (int k=ks; k<=ke; ++k) {
         for (int j=jl; j<=ju; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
           for (int i=is; i<=ie; ++i) {
             b_out.x2f(k,j,i) = wght[1]*b_in1.x2f(k,j,i) + wght[2]*b_in2.x2f(k,j,i)
                                + wght[3]*b_in3.x2f(k,j,i) + wght[4]*b_in4.x2f(k,j,i);
@@ -400,7 +423,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
       //---- B3
       for (int k=ks; k<=ke+1; ++k) {
         for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
           for (int i=is; i<=ie; ++i) {
             b_out.x3f(k,j,i) = wght[1]*b_in1.x3f(k,j,i) + wght[2]*b_in2.x3f(k,j,i)
                                + wght[3]*b_in3.x3f(k,j,i) + wght[4]*b_in4.x3f(k,j,i);
@@ -412,7 +436,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
         //---- B1
         for (int k=ks; k<=ke; ++k) {
           for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
             for (int i=is; i<=ie+1; ++i) {
               b_out.x1f(k,j,i) = wght[1]*b_in1.x1f(k,j,i) + wght[2]*b_in2.x1f(k,j,i)
                                  + wght[3]*b_in3.x1f(k,j,i);
@@ -422,7 +447,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
         //---- B2
         for (int k=ks; k<=ke; ++k) {
           for (int j=jl; j<=ju; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
             for (int i=is; i<=ie; ++i) {
               b_out.x2f(k,j,i) = wght[1]*b_in1.x2f(k,j,i) + wght[2]*b_in2.x2f(k,j,i)
                                  + wght[3]*b_in3.x2f(k,j,i);
@@ -432,7 +458,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
         //---- B3
         for (int k=ks; k<=ke+1; ++k) {
           for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
             for (int i=is; i<=ie; ++i) {
               b_out.x3f(k,j,i) = wght[1]*b_in1.x3f(k,j,i) + wght[2]*b_in2.x3f(k,j,i)
                                  + wght[3]*b_in3.x3f(k,j,i);
@@ -444,7 +471,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
           //---- B1
           for (int k=ks; k<=ke; ++k) {
             for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
               for (int i=is; i<=ie+1; ++i) {
                 b_out.x1f(k,j,i) = wght[1]*b_in1.x1f(k,j,i) + wght[2]*b_in2.x1f(k,j,i);
               }
@@ -453,7 +481,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
           //---- B2
           for (int k=ks; k<=ke; ++k) {
             for (int j=jl; j<=ju; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
               for (int i=is; i<=ie; ++i) {
                 b_out.x2f(k,j,i) = wght[1]*b_in1.x2f(k,j,i) + wght[2]*b_in2.x2f(k,j,i);
               }
@@ -462,7 +491,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
           //---- B3
           for (int k=ks; k<=ke+1; ++k) {
             for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
               for (int i=is; i<=ie; ++i) {
                 b_out.x3f(k,j,i) = wght[1]*b_in1.x3f(k,j,i) + wght[2]*b_in2.x3f(k,j,i);
               }
@@ -474,7 +504,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
             //---- B1
             for (int k=ks; k<=ke; ++k) {
               for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
                 for (int i=is; i<=ie+1; ++i) {
                   b_out.x1f(k,j,i) = b_in1.x1f(k,j,i);
                 }
@@ -483,7 +514,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
             //---- B2
             for (int k=ks; k<=ke; ++k) {
               for (int j=jl; j<=ju; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
                 for (int i=is; i<=ie; ++i) {
                   b_out.x2f(k,j,i) = b_in1.x2f(k,j,i);
                 }
@@ -492,7 +524,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
             //---- B3
             for (int k=ks; k<=ke+1; ++k) {
               for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
                 for (int i=is; i<=ie; ++i) {
                   b_out.x3f(k,j,i) = b_in1.x3f(k,j,i);
                 }
@@ -502,7 +535,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
             //---- B1
             for (int k=ks; k<=ke; ++k) {
               for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
                 for (int i=is; i<=ie+1; ++i) {
                   b_out.x1f(k,j,i) = wght[1]*b_in1.x1f(k,j,i);
                 }
@@ -511,7 +545,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
             //---- B2
             for (int k=ks; k<=ke; ++k) {
               for (int j=jl; j<=ju; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
                 for (int i=is; i<=ie; ++i) {
                   b_out.x2f(k,j,i) = wght[1]*b_in1.x2f(k,j,i);
                 }
@@ -520,7 +555,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
             //---- B3
             for (int k=ks; k<=ke+1; ++k) {
               for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
                 for (int i=is; i<=ie; ++i) {
                   b_out.x3f(k,j,i) = wght[1]*b_in1.x3f(k,j,i);
                 }
@@ -535,7 +571,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
       //---- B1
       for (int k=ks; k<=ke; ++k) {
         for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
           for (int i=is; i<=ie+1; ++i) {
             b_out.x1f(k,j,i) = wght[0]*b_out.x1f(k,j,i) + wght[1]*b_in1.x1f(k,j,i)
                                + wght[2]*b_in2.x1f(k,j,i) + wght[3]*b_in3.x1f(k,j,i)
@@ -546,7 +583,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
       //---- B2
       for (int k=ks; k<=ke; ++k) {
         for (int j=jl; j<=ju; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
           for (int i=is; i<=ie; ++i) {
             b_out.x2f(k,j,i) = wght[0]*b_out.x2f(k,j,i) + wght[1]*b_in1.x2f(k,j,i)
                                + wght[2]*b_in2.x2f(k,j,i) + wght[3]*b_in3.x2f(k,j,i)
@@ -557,7 +595,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
       //---- B3
       for (int k=ks; k<=ke+1; ++k) {
         for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
           for (int i=is; i<=ie; ++i) {
             b_out.x3f(k,j,i) = wght[0]*b_out.x3f(k,j,i) + wght[1]*b_in1.x3f(k,j,i)
                                + wght[2]*b_in2.x3f(k,j,i) + wght[3]*b_in3.x3f(k,j,i)
@@ -570,7 +609,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
         //---- B1
         for (int k=ks; k<=ke; ++k) {
           for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
             for (int i=is; i<=ie+1; ++i) {
               b_out.x1f(k,j,i) = wght[0]*b_out.x1f(k,j,i) + wght[1]*b_in1.x1f(k,j,i)
                                  + wght[2]*b_in2.x1f(k,j,i) + wght[3]*b_in3.x1f(k,j,i);
@@ -580,7 +620,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
         //---- B2
         for (int k=ks; k<=ke; ++k) {
           for (int j=jl; j<=ju; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
             for (int i=is; i<=ie; ++i) {
               b_out.x2f(k,j,i) = wght[0]*b_out.x2f(k,j,i) + wght[1]*b_in1.x2f(k,j,i)
                                  + wght[2]*b_in2.x2f(k,j,i) + wght[3]*b_in3.x2f(k,j,i);
@@ -590,7 +631,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
         //---- B3
         for (int k=ks; k<=ke+1; ++k) {
           for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
             for (int i=is; i<=ie; ++i) {
               b_out.x3f(k,j,i) = wght[0]*b_out.x3f(k,j,i) + wght[1]*b_in1.x3f(k,j,i)
                                  + wght[2]*b_in2.x3f(k,j,i) + wght[3]*b_in3.x3f(k,j,i);
@@ -602,7 +644,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
           //---- B1
           for (int k=ks; k<=ke; ++k) {
             for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
               for (int i=is; i<=ie+1; ++i) {
                 b_out.x1f(k,j,i) = wght[0]*b_out.x1f(k,j,i) + wght[1]*b_in1.x1f(k,j,i)
                                    + wght[2]*b_in2.x1f(k,j,i);
@@ -612,7 +655,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
           //---- B2
           for (int k=ks; k<=ke; ++k) {
             for (int j=jl; j<=ju; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
               for (int i=is; i<=ie; ++i) {
                 b_out.x2f(k,j,i) = wght[0]*b_out.x2f(k,j,i) + wght[1]*b_in1.x2f(k,j,i)
                                    + wght[2]*b_in2.x2f(k,j,i);
@@ -622,7 +666,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
           //---- B3
           for (int k=ks; k<=ke+1; ++k) {
             for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
               for (int i=is; i<=ie; ++i) {
                 b_out.x3f(k,j,i) = wght[0]*b_out.x3f(k,j,i) + wght[1]*b_in1.x3f(k,j,i)
                                    + wght[2]*b_in2.x3f(k,j,i);
@@ -634,7 +679,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
             //---- B1
             for (int k=ks; k<=ke; ++k) {
               for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
                 for (int i=is; i<=ie+1; ++i) {
                   b_out.x1f(k,j,i) = wght[0]*b_out.x1f(k,j,i) + wght[1]*b_in1.x1f(k,j,i);
                 }
@@ -643,7 +689,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
             //---- B2
             for (int k=ks; k<=ke; ++k) {
               for (int j=jl; j<=ju; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
                 for (int i=is; i<=ie; ++i) {
                   b_out.x2f(k,j,i) = wght[0]*b_out.x2f(k,j,i) + wght[1]*b_in1.x2f(k,j,i);
                 }
@@ -652,7 +699,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
             //---- B3
             for (int k=ks; k<=ke+1; ++k) {
               for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
                 for (int i=is; i<=ie; ++i) {
                   b_out.x3f(k,j,i) = wght[0]*b_out.x3f(k,j,i) + wght[1]*b_in1.x3f(k,j,i);
                 }
@@ -662,7 +710,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
             //---- B1
             for (int k=ks; k<=ke; ++k) {
               for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
                 for (int i=is; i<=ie+1; ++i) {
                   b_out.x1f(k,j,i) *= wght[0];
                 }
@@ -671,7 +720,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
             //---- B2
             for (int k=ks; k<=ke; ++k) {
               for (int j=jl; j<=ju; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
                 for (int i=is; i<=ie; ++i) {
                   b_out.x2f(k,j,i) *= wght[0];
                 }
@@ -680,7 +730,8 @@ void MeshBlock::WeightedAve(FaceField &b_out, FaceField &b_in1,
             //---- B3
             for (int k=ks; k<=ke+1; ++k) {
               for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety) 
+
                 for (int i=is; i<=ie; ++i) {
                   b_out.x3f(k,j,i) *= wght[0];
                 }

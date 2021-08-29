@@ -122,15 +122,15 @@ void FieldDiffusion::AddEMF(const EdgeField &e_src, EdgeField &e_des) {
   int size2 = e_src.x2e.GetSize();
   int size3 = e_src.x3e.GetSize();
 
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=0; i<size1; ++i)
     e_des.x1e(i) += e_src.x1e(i);
 
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=0; i<size2; ++i)
     e_des.x2e(i) += e_src.x2e(i);
 
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=0; i<size3; ++i)
     e_des.x3e(i) += e_src.x3e(i);
 
@@ -168,7 +168,7 @@ void FieldDiffusion::SetDiffusivity(const AthenaArray<Real> &w,
 
   for (int k=kl; k<=ku; ++k) {
     for (int j=jl; j<=ju; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
       for (int i=il; i<=iu; ++i) {
         Real Bsq = SQR(bc(IB1,k,j,i)) + SQR(bc(IB2,k,j,i)) + SQR(bc(IB3,k,j,i));
         bmag_(k,j,i) = std::sqrt(Bsq);
@@ -197,7 +197,7 @@ void FieldDiffusion::AddPoyntingFlux(FaceField &p_src) {
 
   // 1D update:
   if (pmb->block_size.nx2 == 1) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=is; i<=ie+1; ++i) {
       x1flux(IEN,ks,js,i) += f1(ks,js,i);
     }
@@ -207,7 +207,7 @@ void FieldDiffusion::AddPoyntingFlux(FaceField &p_src) {
   // 2D update:
   if (pmb->block_size.nx3 == 1) {
     for (int j=js; j<=je+1; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
       for (int i=is; i<=ie+1; ++i) {
         x1flux(IEN,ks,j,i) += f1(ks,j,i);
         x2flux(IEN,ks,j,i) += f2(ks,j,i);
@@ -219,7 +219,7 @@ void FieldDiffusion::AddPoyntingFlux(FaceField &p_src) {
   // 3D update:
   for (int k=ks; k<=ke+1; ++k) {
     for (int j=js; j<=je+1; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
       for (int i=is; i<=ie+1; ++i) {
         x1flux(IEN,k,j,i) += f1(k,j,i);
         x2flux(IEN,k,j,i) += f2(k,j,i);
@@ -266,18 +266,18 @@ void FieldDiffusion::NewDiffusionDt(Real &dt_oa, Real &dt_h) {
 
   for (int k=ks; k<=ke; ++k) {
     for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
       for (int i=is; i<=ie; ++i) {
         eta_t(i) = 0.0;
       }
       if (eta_ohm > 0.0) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
         for (int i=is; i<=ie; ++i) {
           eta_t(i) += etaB(ohmic,k,j,i);
         }
       }
       if (eta_ad > 0.0) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
         for (int i=is; i<=ie; ++i) {
           eta_t(i) += etaB(DiffProcess::ambipolar,k,j,i);
         }
@@ -285,20 +285,21 @@ void FieldDiffusion::NewDiffusionDt(Real &dt_oa, Real &dt_h) {
       pmb->pcoord->CenterWidth1(k, j, is, ie, len);
       pmb->pcoord->CenterWidth2(k, j, is, ie, dx2);
       pmb->pcoord->CenterWidth3(k, j, is, ie, dx3);
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
       for (int i=is; i<=ie; ++i) {
-        len(i) = (f2) ? std::min(len(i), dx2(i)):len(i);
-        len(i) = (f3) ? std::min(len(i), dx3(i)):len(i);
+        len(i) = std::min(std::min(len(i), dx2(i)), dx3(i));
       }
       if ((eta_ohm > 0.0) || (eta_ad > 0.0)) {
+#pragma clang loop vectorize(assume_safety)
         for (int i=is; i<=ie; ++i)
-          dt_oa = std::min(dt_oa, static_cast<Real>(
-              fac_oa*SQR(len(i)) / (eta_t(i) + TINY_NUMBER)));
+          dt_oa = std::min(dt_oa,
+              fac_oa*SQR(len(i)) / (eta_t(i) + TINY_NUMBER));
       }
       if (eta_hall > 0.0) {
+#pragma clang loop vectorize(assume_safety)
         for (int i=is; i<=ie; ++i)
-          dt_h = std::min(dt_h, static_cast<Real>(
-              fac_h*SQR(len(i)) / (std::abs(etaB(hall,k,j,i)) + TINY_NUMBER)));
+          dt_h = std::min(dt_h,
+              fac_h*SQR(len(i)) / (std::abs(etaB(hall,k,j,i)) + TINY_NUMBER));
       }
     }
   }

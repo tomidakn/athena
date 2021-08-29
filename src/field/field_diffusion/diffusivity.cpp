@@ -32,7 +32,7 @@ void ConstDiffusivity(FieldDiffusion *pfdif, MeshBlock *pmb, const AthenaArray<R
   if (pfdif->eta_ohm > 0.0) { // Ohmic resistivity is turned on
     for (int k=ks; k<=ke; k++) {
       for (int j=js; j<=je; j++) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
         for (int i=is; i<=ie; i++)
           pfdif->etaB(FieldDiffusion::DiffProcess::ohmic, k,j,i) =
               pfdif->eta_ohm;
@@ -42,7 +42,7 @@ void ConstDiffusivity(FieldDiffusion *pfdif, MeshBlock *pmb, const AthenaArray<R
   if (pfdif->eta_hall != 0.0) { // Hall diffusivity is turned on
     for (int k=ks; k<=ke; k++) {
       for (int j=js; j<=je; j++) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
         for (int i=is; i<=ie; i++)
           pfdif->etaB(FieldDiffusion::DiffProcess::hall, k,j,i) =
               pfdif->eta_hall*bmag(k,j,i)/w(IDN,k,j,i);
@@ -52,7 +52,7 @@ void ConstDiffusivity(FieldDiffusion *pfdif, MeshBlock *pmb, const AthenaArray<R
   if (pfdif->eta_ad > 0.0) { // ambipolar diffusivity is turned on
     for (int k=ks; k<=ke; k++) {
       for (int j=js; j<=je; j++) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
         for (int i=is; i<=ie; i++)
           pfdif->etaB(FieldDiffusion::DiffProcess::ambipolar, k,j,i) =
               pfdif->eta_ad*SQR(bmag(k,j,i));
@@ -71,90 +71,66 @@ void FieldDiffusion::CalcCurrent(FaceField &b) {
   MeshBlock *pmb = pmy_block;
   Coordinates *pco = pmb->pcoord;
 
-  int ext2 = 0,ext3 = 0;
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
-  if (pmb->block_size.nx2 > 1) ext2 = 1;
-  if (pmb->block_size.nx3 > 1) ext3 = 1;
 
   AthenaArray<Real> &J1 = jedge_.x1e, &J2 = jedge_.x2e, &J3 = jedge_.x3e,
                    &b1i = b.x1f, &b2i = b.x2f, &b3i = b.x3f;
 
   AthenaArray<Real> &area = face_area_, &len = edge_length_, &len_m1 = edge_length_m1_;
 
-  for (int k=ks-ext3; k<=ke+2*ext3; ++k) {
-    for (int j=js-2*ext2; j<=je+2*ext2; ++j) {
-      pco->VolCenterFace2Area(k-ext3, j, is-2, ie+1, area);
-      pco->VolCenter3Length(k-ext3, j, is-2, ie+2, len);
-#pragma omp simd
+  for (int k=ks-1; k<=ke+2; ++k) {
+    for (int j=js-1; j<=je+2; ++j) {
+      pco->VolCenter3Length(k-1, j-1, is-2, ie+2, len_m1);
+      pco->VolCenter3Length(k-1, j  , is-2, ie+2, len);
+#pragma clang loop vectorize(assume_safety)
+      for (int i=is-2; i<=ie+2; ++i) {
+        J1(k,j,i) = len(i)*b3i(k,j,i) - len_m1(i)*b3i(k,j-1,i);
+      }
+      pco->VolCenter2Length(k-1, j-1, is-2, ie+2, len_m1);
+      pco->VolCenter2Length(k  , j-1, is-2, ie+2, len);
+      pco->VolCenterFace1Area(k-1, j-1, is-2, ie+2, area);
+#pragma clang loop vectorize(assume_safety)
+      for (int i=is-2; i<=ie+2; ++i) {
+        J1(k,j,i) = (J1(k,j,i) - (len(i)*b2i(k,j,i) - len_m1(i)*b2i(k-1,j,i)))/area(i);
+      }
+    }
+  }
+
+  for (int k=ks-1; k<=ke+2; ++k) {
+    for (int j=js-2; j<=je+2; ++j) {
+      pco->VolCenter1Length(k-1, j, is-2, ie+1, len_m1);
+      pco->VolCenter1Length(k  , j, is-2, ie+1, len);
+#pragma clang loop vectorize(assume_safety)
       for (int i=is-1; i<=ie+2; ++i) {
-        J2(k,j,i) = -(len(i)*b3i(k,j,i) - len(i-1)*b3i(k,j,i-1))/area(i-1);
+        J2(k,j,i) = len(i-1)*b1i(k,j,i) - len_m1(i-1)*b1i(k-1,j,i);
       }
-    }
-  }
-
-  for (int k=ks-2*ext3; k<=ke+2*ext3; ++k) {
-    for (int j=js-ext2; j<=je+2*ext2; ++j) {
-      pco->VolCenterFace3Area(k, j-ext2, is-2, ie+1, area);
-      pco->VolCenter2Length(k, j-ext2, is-2, ie+2, len);
-#pragma omp simd
+      pco->VolCenter3Length(k-1, j, is-2, ie+2, len);
+      pco->VolCenterFace2Area(k-1, j, is-2, ie+1, area);
+#pragma clang loop vectorize(assume_safety)
       for (int i=is-1; i<=ie+2; ++i) {
-        J3(k,j,i) = (len(i)*b2i(k,j,i) - len(i-1)*b2i(k,j,i-1))/area(i-1);
+        J2(k,j,i) = (J2(k,j,i)-(len(i)*b3i(k,j,i) - len(i-1)*b3i(k,j,i-1)))/area(i-1);
       }
     }
   }
 
-  if (pmb->block_size.nx2 > 1) {
-    for (int k=ks-ext3; k<=ke+2*ext3; ++k) {
-      for (int j=js-1; j<=je+2; ++j) {
-        pco->VolCenterFace1Area(k-ext3, j-1, is-2, ie+2, area);
-        pco->VolCenter3Length(k-ext3, j-1, is-2, ie+2, len_m1);
-        pco->VolCenter3Length(k-ext3, j  , is-2, ie+2, len);
-#pragma omp simd
-        for (int i=is-2; i<=ie+2; ++i) {
-          J1(k,j,i) = (len(i)*b3i(k,j,i) - len_m1(i)*b3i(k,j-1,i))/area(i);
-        }
+  for (int k=ks-2; k<=ke+2; ++k) {
+    for (int j=js-1; j<=je+2; ++j) {
+      pco->VolCenter2Length(k, j-1, is-2, ie+2, len);
+#pragma clang loop vectorize(assume_safety)
+      for (int i=is-1; i<=ie+2; ++i) {
+        J3(k,j,i) = len(i)*b2i(k,j,i) - len(i-1)*b2i(k,j,i-1);
       }
-    }
-
-    for (int k=ks-2*ext3; k<=ke+2*ext3; ++k) {
-      for (int j=js-1; j<=je+2; ++j) {
-        pco->VolCenterFace3Area(k, j-1, is-2, ie+1, area);
-        pco->VolCenter1Length(k, j-1, is-2, ie+1, len_m1);
-        pco->VolCenter1Length(k, j  , is-2, ie+1, len);
-#pragma omp simd
-        for (int i=is-1; i<=ie+2; ++i) {
-          J3(k,j,i) -= (len(i-1)*b1i(k,j,i) - len_m1(i-1)*b1i(k,j-1,i))/area(i-1);
-        }
+      pco->VolCenter1Length(k, j-1, is-2, ie+1, len_m1);
+      pco->VolCenter1Length(k, j  , is-2, ie+1, len);
+      pco->VolCenterFace3Area(k, j-1, is-2, ie+1, area);
+#pragma clang loop vectorize(assume_safety)
+      for (int i=is-1; i<=ie+2; ++i) {
+        J3(k,j,i) = (J3(k,j,i)-(len(i-1)*b1i(k,j,i)-len_m1(i-1)*b1i(k,j-1,i)))/area(i-1);
       }
     }
   }
 
-  if (pmb->block_size.nx3 > 1) {
-    for (int k=ks-1; k<=ke+2; ++k) {
-      for (int j=js-1; j<=je+2; ++j) {
-        pco->VolCenterFace1Area(k-1, j-1, is-2, ie+2, area);
-        pco->VolCenter2Length(k-1, j-1, is-2, ie+2, len_m1);
-        pco->VolCenter2Length(k  , j-1, is-2, ie+2, len);
-#pragma omp simd
-        for (int i=is-2; i<=ie+2; ++i) {
-          J1(k,j,i) -= (len(i)*b2i(k,j,i) - len_m1(i)*b2i(k-1,j,i))/area(i);
-        }
-      }
-    }
-
-    for (int k=ks-1; k<=ke+2; ++k) {
-      for (int j=js-2; j<=je+2; ++j) {
-        pco->VolCenterFace2Area(k-1, j, is-2, ie+1, area);
-        pco->VolCenter1Length(k-1, j, is-2, ie+1, len_m1);
-        pco->VolCenter1Length(k  , j, is-2, ie+1, len);
-#pragma omp simd
-        for (int i=is-1; i<=ie+2; ++i) {
-          J2(k,j,i) += (len(i-1)*b1i(k,j,i) - len_m1(i-1)*b1i(k-1,j,i))/area(i-1);
-        }
-      }
-    }
-  }
   return;
 }
 
@@ -188,7 +164,7 @@ void FieldDiffusion::OhmicEMF(const FaceField &b, const AthenaArray<Real> &bc,
   // 2D update:
   if (pmb->block_size.nx3 == 1) {
     for (int j=js; j<=je+1; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
       for (int i=is; i<=ie+1; ++i) {
         Real eta_O = 0.5*(etaB(ohmic,ks,j,i) + etaB(ohmic,ks,j-1,i));
         e1(ks  ,j,i) += eta_O * J1(ks,j,i);
@@ -209,7 +185,7 @@ void FieldDiffusion::OhmicEMF(const FaceField &b, const AthenaArray<Real> &bc,
   // 3D update:
   for (int k=ks; k<=ke+1; ++k) {
     for (int j=js; j<=je+1; ++j) {
-#pragma clang loop vectorize(assume_safety) 
+#pragma clang loop vectorize(assume_safety)
 #pragma fj loop loop_fission_target
 #pragma fj loop loop_fission_threshold 1
       for (int i=is; i<=ie+1; ++i) {
@@ -243,6 +219,7 @@ void FieldDiffusion::AmbipolarEMF(const FaceField &b, const AthenaArray<Real> &b
 
   // 1D update:
   if (pmb->block_size.nx2 == 1) {
+#pragma clang loop vectorize(assume_safety)
     for (int i=is; i<=ie+1; ++i) {
       Real eta_A = 0.5*(etaB(ambipolar,ks,js,i-1) + etaB(ambipolar,ks,js,i));
 
@@ -265,7 +242,7 @@ void FieldDiffusion::AmbipolarEMF(const FaceField &b, const AthenaArray<Real> &b
   // 2D update:
   if (pmb->block_size.nx3 == 1) {
     for (int j=js; j<=je+1; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
       for (int i=is; i<=ie+1; ++i) {
         // emf.x
         Real eta_A = 0.5*(etaB(ambipolar,ks,j,i) + etaB(ambipolar,ks,j-1,i));
@@ -329,7 +306,7 @@ void FieldDiffusion::AmbipolarEMF(const FaceField &b, const AthenaArray<Real> &b
   // 3D update:
   for (int k=ks; k<=ke+1; ++k) {
     for (int j=js; j<=je+1; ++j) {
-#pragma clang loop vectorize(assume_safety) 
+#pragma clang loop vectorize(assume_safety)
 #pragma fj loop loop_fission_target
 #pragma fj loop loop_fission_threshold 1
       for (int i=is; i<=ie+1; ++i) {
@@ -412,7 +389,7 @@ void FieldDiffusion::PoyntingFlux(EdgeField &e, const AthenaArray<Real> &bc) {
 
   // 1D update:
   if (pmb->block_size.nx2 == 1) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=is; i<=ie+1; ++i) {
       f1(ks,js,i) = -0.5*(bc(IB2,ks,js,i) + bc(IB2,ks,js,i-1))*e3(ks,js,i)
                     + 0.5*(bc(IB3,ks,js,i) + bc(IB3,ks,js,i-1))*e2(ks,js,i);
@@ -423,7 +400,7 @@ void FieldDiffusion::PoyntingFlux(EdgeField &e, const AthenaArray<Real> &bc) {
   // 2D update:
   if (pmb->block_size.nx3 == 1) {
     for (int j=js; j<=je+1; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
       for (int i=is; i<=ie+1; ++i) {
         f1(ks,j,i) = -0.25*(bc(IB2,ks,j,i) + bc(IB2,ks,j,i-1))
                      *(e3(ks,j,i) + e3(ks,j+1,i))
@@ -440,7 +417,9 @@ void FieldDiffusion::PoyntingFlux(EdgeField &e, const AthenaArray<Real> &bc) {
   // 3D update:
   for (int k=ks; k<=ke+1; ++k) {
     for (int j=js; j<=je+1; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
+#pragma fj loop loop_fission_target
+#pragma fj loop loop_fission_threshold 1
       for (int i=is; i<=ie+1; ++i) {
         f1(k,j,i) = -0.25*(bc(IB2,k,j,i) + bc(IB2,k,j,i-1))
                     *(e3(k,j,i) + e3(k,j+1,i))

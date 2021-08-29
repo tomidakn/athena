@@ -15,6 +15,7 @@
 #include "../athena_arrays.hpp"
 #include "buffer_utils.hpp"
 
+#if 0
 namespace BufferUtility {
 //----------------------------------------------------------------------------------------
 //! \fn template <typename T> void PackData(const AthenaArray<T> &src, T *buf,
@@ -104,3 +105,5 @@ template void PackData<Real>(const AthenaArray<Real> &, Real *,
                              int, int, int, int, int, int, int &);
 
 } // end namespace BufferUtility
+
+#endif

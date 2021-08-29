@@ -16,6 +16,7 @@
 // C headers
 
 // C++ headers
+#include <algorithm> // fill_n
 #include <cstddef>  // size_t
 #include <cstring>  // memset()
 #include <utility>  // swap()
@@ -508,13 +509,20 @@ void AthenaArray<T>::ExchangeAthenaArray(AthenaArray<T>& array2) {
 
 template<typename T>
 void AthenaArray<T>::ZeroClear() {
+  const T d = 0;
   switch (state_) {
     case DataStatus::empty:
       break;
     case DataStatus::shallow_slice:
     case DataStatus::allocated:
       // allocate memory and initialize to zero
-      std::memset(pdata_, 0, GetSizeInBytes());
+      int n = GetSize();
+#pragma clang loop vectorize(assume_safety)
+#pragma fj loop zfill 
+      for (int i = 0; i < n; ++i)
+        pdata_[i] = d;
+//      std::fill_n(pdata_, GetSize(), d);
+//      std::memset(pdata_, 0, GetSizeInBytes());
       break;
   }
 }

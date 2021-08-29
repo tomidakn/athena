@@ -167,7 +167,7 @@ SphericalPolar::SphericalPolar(MeshBlock *pmb, ParameterInput *pin, bool flag)
     coord_area2vc_j_.NewAthenaArray(nc2);
     // Compute and store constant coefficients needed for face-areas, cell-volumes, etc.
     // This helps improve performance.
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=il-ng; i<=iu+ng; ++i) {
       Real rm = x1f(i  );
       Real rp = x1f(i+1);
@@ -191,7 +191,7 @@ SphericalPolar::SphericalPolar(MeshBlock *pmb, ParameterInput *pin, bool flag)
       coord_area1vc_i_(i) = SQR(x1v(i));
     }
     coord_area1_i_(iu+ng+1) = x1f(iu+ng+1)*x1f(iu+ng+1);
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=il-ng; i<=iu+ng-1; ++i) {//non-ideal MHD
       // 0.5*(R_{i+1}^2 - R_{i}^2)
       coord_area2vc_i_(i)= 0.5*(SQR(x1v(i+1))-SQR(x1v(i)));
@@ -199,7 +199,7 @@ SphericalPolar::SphericalPolar(MeshBlock *pmb, ParameterInput *pin, bool flag)
       coord_area3vc_i_(i)= coord_area2vc_i_(i);
     }
     if (pmb->block_size.nx2 > 1) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
       for (int j=jl-ng; j<=ju+ng; ++j) {
         Real sm = std::abs(std::sin(x2f(j  )));
         Real sp = std::abs(std::sin(x2f(j+1)));
@@ -220,7 +220,7 @@ SphericalPolar::SphericalPolar(MeshBlock *pmb, ParameterInput *pin, bool flag)
         // sin theta at the volume center for non-ideal MHD
         coord_area2vc_j_(j)= std::abs(std::sin(x2v(j)));
       }
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
       for (int j=jl-ng; j<=ju+ng-1; ++j) {
         // d(sin theta) = d(-cos theta) at the volume center for non-ideal MHD
         coord_area1vc_j_(j)= std::abs(cos(x2v(j))-cos(x2v(j+1)));
@@ -256,7 +256,7 @@ SphericalPolar::SphericalPolar(MeshBlock *pmb, ParameterInput *pin, bool flag)
 
 void SphericalPolar::Edge2Length(const int k, const int j, const int il, const int iu,
                                  AthenaArray<Real> &len) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     // length2 = r d(theta)
     len(i) = x1f(i)*dx2f(j);
@@ -268,7 +268,7 @@ void SphericalPolar::Edge2Length(const int k, const int j, const int il, const i
 
 void SphericalPolar::Edge3Length(const int k, const int j, const int il, const int iu,
                                  AthenaArray<Real> &len) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     // length3 = r std::sin(theta) d(phi)
     len(i) = x1f(i)*coord_area2_j_(j)*dx3f(k);
@@ -294,7 +294,7 @@ Real SphericalPolar::GetEdge3Length(const int k, const int j, const int i) {
 
 void SphericalPolar::VolCenter2Length(const int k, const int j, const int il,
                                       const int iu, AthenaArray<Real> &len) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     // length2 = r d(theta)
     len(i) = x1v(i)*dx2v(j);
@@ -305,7 +305,7 @@ void SphericalPolar::VolCenter2Length(const int k, const int j, const int il,
 // VolCenter3(i,j,k) located at (i,j,k+1/2), i.e. (x1v(i), x2v(j), x3f(k+1))
 void SphericalPolar::VolCenter3Length(const int k, const int j, const int il,
                                       const int iu, AthenaArray<Real> &len) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     // length3 = r std::sin(theta) d(phi)
     len(i) = x1v(i)*coord_area2vc_j_(j)*dx3v(k);
@@ -318,7 +318,7 @@ void SphericalPolar::VolCenter3Length(const int k, const int j, const int il,
 
 void SphericalPolar::CenterWidth2(const int k, const int j, const int il, const int iu,
                                   AthenaArray<Real> &dx2) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     dx2(i) = x1v(i)*dx2f(j);
   }
@@ -327,7 +327,7 @@ void SphericalPolar::CenterWidth2(const int k, const int j, const int il, const 
 
 void SphericalPolar::CenterWidth3(const int k, const int j, const int il, const int iu,
                                   AthenaArray<Real> &dx3) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     dx3(i) = x1v(i)*std::abs(std::sin(x2v(j)))*dx3f(k);
   }
@@ -339,7 +339,7 @@ void SphericalPolar::CenterWidth3(const int k, const int j, const int il, const 
 
 void SphericalPolar::Face1Area(const int k, const int j, const int il, const int iu,
                                AthenaArray<Real> &area) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     // area1 = r^2 sin[theta] dtheta dphi = r^2 d(-cos[theta]) dphi
     area(i) = coord_area1_i_(i)*coord_area1_j_(j)*dx3f(k);
@@ -349,7 +349,7 @@ void SphericalPolar::Face1Area(const int k, const int j, const int il, const int
 
 void SphericalPolar::Face2Area(const int k, const int j, const int il, const int iu,
                                AthenaArray<Real> &area) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     // area2 = dr r sin[theta] dphi = d(r^2/2) sin[theta] dphi
     area(i) = coord_area2_i_(i)*coord_area2_j_(j)*dx3f(k);
@@ -359,7 +359,7 @@ void SphericalPolar::Face2Area(const int k, const int j, const int il, const int
 
 void SphericalPolar::Face3Area(const int k, const int j, const int il, const int iu,
                                AthenaArray<Real> &area) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     // area3 = dr r dtheta = d(r^2/2) dtheta
     area(i) = coord_area3_i_(i)*dx2f(j);
@@ -388,7 +388,7 @@ Real SphericalPolar::GetFace3Area(const int k, const int j, const int i) {
 
 void SphericalPolar::VolCenterFace1Area(const int k, const int j, const int il,
                                         const int iu, AthenaArray<Real> &area) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     // area1 = r^2 sin[theta] dtheta dphi = r^2 d(-cos[theta]) dphi
     area(i) = coord_area1vc_i_(i)*coord_area1vc_j_(j)*dx3v(k);
@@ -397,7 +397,7 @@ void SphericalPolar::VolCenterFace1Area(const int k, const int j, const int il,
 }
 void SphericalPolar::VolCenterFace2Area(const int k, const int j, const int il,
                                         const int iu, AthenaArray<Real> &area) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     // area2 = dr r sin[theta] dphi = d(r^2/2) sin[theta] dphi
     area(i) = coord_area2vc_i_(i)*coord_area2vc_j_(j)*dx3v(k);
@@ -406,7 +406,7 @@ void SphericalPolar::VolCenterFace2Area(const int k, const int j, const int il,
 }
 void SphericalPolar::VolCenterFace3Area(const int k, const int j, const int il,
                                         const int iu, AthenaArray<Real> &area) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     // area3 = dr r dtheta = d(r^2/2) dtheta
     area(i) = coord_area3vc_i_(i)*dx2v(j);
@@ -419,7 +419,7 @@ void SphericalPolar::VolCenterFace3Area(const int k, const int j, const int il,
 
 void SphericalPolar::CellVolume(const int k, const int j, const int il, const int iu,
                                 AthenaArray<Real> &vol) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     // volume = r^2 std::sin(theta) dr dtheta dphi = d(r^3/3) d(-cos theta) dphi
     vol(i) = coord_vol_i_(i)*coord_vol_j_(j)*dx3f(k);
@@ -450,7 +450,9 @@ void SphericalPolar::AddCoordTermsDivergence(const Real dt, const AthenaArray<Re
   // Go through cells
   for (int k=pmy_block->ks; k<=pmy_block->ke; ++k) {
     for (int j=pmy_block->js; j<=pmy_block->je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
+#pragma fj loop loop_fission_target
+#pragma fj loop loop_fission_threshold 1
       for (int i=pmy_block->is; i<=pmy_block->ie; ++i) {
         // src_1 = < M_{theta theta} + M_{phi phi} ><1/r>
         Real m_ii = prim(IDN,k,j,i)*(SQR(prim(IM2,k,j,i)) + SQR(prim(IM3,k,j,i)));
@@ -540,7 +542,9 @@ void SphericalPolar::AddCoordTermsDivergence_STS(const Real dt, int stage,
   if (do_hydro_diffusion) {
     for (int k=pmy_block->ks; k<=pmy_block->ke; ++k) {
       for (int j=pmy_block->js; j<=pmy_block->je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
+#pragma fj loop loop_fission_target
+#pragma fj loop loop_fission_threshold 1
         for (int i=pmy_block->is; i<=pmy_block->ie; ++i) {
           // src_1 = < M_{theta theta} + M_{phi phi} ><1/r>
           Real m_ii = 0.5*(hd.visflx[X2DIR](IM2,k,j+1,i) + hd.visflx[X2DIR](IM2,k,j,i));

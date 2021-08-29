@@ -327,7 +327,7 @@ Coordinates::Coordinates(MeshBlock *pmb, ParameterInput *pin, bool flag) :
 
 void Coordinates::Edge1Length(const int k, const int j, const int il, const int iu,
                               AthenaArray<Real> &len) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     len(i) = dx1f(i);
   }
@@ -338,7 +338,7 @@ void Coordinates::Edge1Length(const int k, const int j, const int il, const int 
 
 void Coordinates::Edge2Length(const int k, const int j, const int il, const int iu,
                               AthenaArray<Real> &len) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     len(i) = dx2f(j);
   }
@@ -349,7 +349,7 @@ void Coordinates::Edge2Length(const int k, const int j, const int il, const int 
 
 void Coordinates::Edge3Length(const int k, const int j, const int il, const int iu,
                               AthenaArray<Real> &len) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     len(i) = dx3f(k);
   }
@@ -377,7 +377,7 @@ Real Coordinates::GetEdge3Length(const int k, const int j, const int i) {
 // VolCenter1(i,j,k) located at (i+1/2,j,k), i.e. (x1f(i+1), x2v(j), x3v(k))
 void Coordinates::VolCenter1Length(const int k, const int j, const int il, const int iu,
                                    AthenaArray<Real> &len) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     len(i) = dx1v(i);
   }
@@ -385,7 +385,7 @@ void Coordinates::VolCenter1Length(const int k, const int j, const int il, const
 }
 void Coordinates::VolCenter2Length(const int k, const int j, const int il, const int iu,
                                    AthenaArray<Real> &len) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     len(i) = dx2v(j);
   }
@@ -393,7 +393,7 @@ void Coordinates::VolCenter2Length(const int k, const int j, const int il, const
 }
 void Coordinates::VolCenter3Length(const int k, const int j, const int il, const int iu,
                                    AthenaArray<Real> &len) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     len(i) = dx3v(k);
   }
@@ -405,7 +405,7 @@ void Coordinates::VolCenter3Length(const int k, const int j, const int il, const
 
 void Coordinates::CenterWidth1(const int k, const int j, const int il, const int iu,
                                AthenaArray<Real> &dx1) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     dx1(i) = dx1f(i);
   }
@@ -414,7 +414,7 @@ void Coordinates::CenterWidth1(const int k, const int j, const int il, const int
 
 void Coordinates::CenterWidth2(const int k, const int j, const int il, const int iu,
                                AthenaArray<Real> &dx2) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     dx2(i) = dx2f(j);
   }
@@ -423,7 +423,7 @@ void Coordinates::CenterWidth2(const int k, const int j, const int il, const int
 
 void Coordinates::CenterWidth3(const int k, const int j, const int il, const int iu,
                                AthenaArray<Real> &dx3) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     dx3(i) = dx3f(k);
   }
@@ -435,7 +435,7 @@ void Coordinates::CenterWidth3(const int k, const int j, const int il, const int
 
 void Coordinates::Face1Area(const int k, const int j, const int il, const int iu,
                             AthenaArray<Real> &area) {
-#pragma nounroll
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     // area1 = dy dz
     Real& area_i = area(i);
@@ -446,7 +446,7 @@ void Coordinates::Face1Area(const int k, const int j, const int il, const int iu
 
 void Coordinates::Face2Area(const int k, const int j, const int il, const int iu,
                             AthenaArray<Real> &area) {
-#pragma nounroll
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     // area2 = dx dz
     Real& area_i = area(i);
@@ -457,7 +457,7 @@ void Coordinates::Face2Area(const int k, const int j, const int il, const int iu
 
 void Coordinates::Face3Area(const int k, const int j, const int il, const int iu,
                             AthenaArray<Real> &area) {
-#pragma nounroll
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     // area3 = dx dy
     Real& area_i = area(i);
@@ -487,7 +487,7 @@ Real Coordinates::GetFace3Area(const int k, const int j, const int i) {
 
 void Coordinates::VolCenterFace1Area(const int k, const int j, const int il, const int iu,
                                      AthenaArray<Real> &area) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     Real& area_i = area(i);
     area_i = dx2v(j)*dx3v(k);
@@ -497,7 +497,7 @@ void Coordinates::VolCenterFace1Area(const int k, const int j, const int il, con
 
 void Coordinates::VolCenterFace2Area(const int k, const int j, const int il, const int iu,
                                      AthenaArray<Real> &area) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     Real& area_i = area(i);
     area_i = dx1v(i)*dx3v(k);
@@ -507,7 +507,7 @@ void Coordinates::VolCenterFace2Area(const int k, const int j, const int il, con
 
 void Coordinates::VolCenterFace3Area(const int k, const int j, const int il, const int iu,
                                      AthenaArray<Real> &area) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     Real& area_i = area(i);
     area_i = dx1v(i)*dx2v(j);
@@ -520,7 +520,7 @@ void Coordinates::VolCenterFace3Area(const int k, const int j, const int il, con
 
 void Coordinates::CellVolume(const int k, const int j, const int il, const int iu,
                              AthenaArray<Real> &vol) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     // volume = dx dy dz
     Real& vol_i = vol(i);
@@ -546,20 +546,20 @@ void Coordinates::Laplacian(const AthenaArray<Real> &s, AthenaArray<Real> &delta
   for (int n=nl; n<=nu; ++n) {
     for (int k=kl; k<=ku; ++k) {
       for (int j=jl; j<=ju; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
         for (int i=il; i<=iu; ++i) {
           delta_s(n,k,j,i) = (s(n,k,j,i-1) - 2.0*s(n,k,j,i) + s(n,k,j,i+1))
                              /(dx1f(i)*dx1f(i));
         }
         if (pmy_block->block_size.nx2 > 1) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
           for (int i=il; i<=iu; ++i) {
             delta_s(n,k,j,i) += (s(n,k,j-1,i) - 2.0*s(n,k,j,i) + s(n,k,j+1,i))
                                 /(dx2f(j)*dx2f(j));
           }
         }
         if (pmy_block->block_size.nx3 > 1) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
           for (int i=il; i<=iu; ++i) {
             delta_s(n,k,j,i) += (s(n,k-1,j,i) - 2.0*s(n,k,j,i) + s(n,k+1,j,i))
                                 /(dx3f(k)*dx3f(k));
@@ -578,13 +578,13 @@ void Coordinates::LaplacianX1(const AthenaArray<Real> &s, AthenaArray<Real> &del
                               const int n, const int k, const int j,
                               const int il, const int iu) {
   if (pmy_block->block_size.nx3 > 1) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for(int i=il; i<=iu; ++i) {
       delta_s(i) = (s(n,k,j-1,i) - 2.0*s(n,k,j,i) + s(n,k,j+1,i)) / (dx2f(j)*dx2f(j))
                    + (s(n,k-1,j,i) - 2.0*s(n,k,j,i) + s(n,k+1,j,i)) / (dx3f(k)*dx3f(k));
     }
   } else if (pmy_block->block_size.nx2 > 1) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for(int i=il; i<=iu; ++i) {
       delta_s(i) = (s(n,k,j-1,i) - 2.0*s(n,k,j,i) + s(n,k,j+1,i)) / (dx2f(j)*dx2f(j));
     }
@@ -601,7 +601,7 @@ void Coordinates::LaplacianX1All(const AthenaArray<Real> &s, AthenaArray<Real> &
     for (int n=nl; n<=nu; ++n) {
       for (int k=kl; k<=ku; ++k) {
         for (int j=jl; j<=ju; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
           for (int i=il; i<=iu; ++i) {
             delta_s(n,k,j,i) = (s(n,k,j-1,i) - 2.0*s(n,k,j,i) + s(n,k,j+1,i))
                                / (dx2f(j)*dx2f(j))
@@ -615,7 +615,7 @@ void Coordinates::LaplacianX1All(const AthenaArray<Real> &s, AthenaArray<Real> &
     for (int n=nl; n<=nu; ++n) {
       for (int k=kl; k<=ku; ++k) {
         for (int j=jl; j<=ju; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
           for (int i=il; i<=iu; ++i) {
             delta_s(n,k,j,i) = (s(n,k,j-1,i) - 2.0*s(n,k,j,i) + s(n,k,j+1,i))
                                / (dx2f(j)*dx2f(j));
@@ -634,13 +634,13 @@ void Coordinates::LaplacianX2(const AthenaArray<Real> &s, AthenaArray<Real> &del
                               const int n, const int k, const int j,
                               const int il, const int iu) {
   if (pmy_block->block_size.nx3 > 1) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for(int i=il; i<=iu; ++i) {
       delta_s(i) = (s(n,k,j,i-1) - 2.0*s(n,k,j,i) + s(n,k,j,i+1)) / (dx1f(i)*dx1f(i))
                    + (s(n,k-1,j,i) - 2.0*s(n,k,j,i) + s(n,k+1,j,i)) / (dx3f(k)*dx3f(k));
     }
   } else {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for(int i=il; i<=iu; ++i) {
       delta_s(i) = (s(n,k,j,i-1) - 2.0*s(n,k,j,i) + s(n,k,j,i+1)) / (dx1f(i)*dx1f(i));
     }
@@ -654,7 +654,7 @@ void Coordinates::LaplacianX2All(const AthenaArray<Real> &s, AthenaArray<Real> &
     for (int n=nl; n<=nu; ++n) {
       for (int k=kl; k<=ku; ++k) {
         for (int j=jl; j<=ju; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
           for (int i=il; i<=iu; ++i) {
             delta_s(n,k,j,i) = (s(n,k,j,i-1) - 2.0*s(n,k,j,i) + s(n,k,j,i+1))
                                / (dx1f(i)*dx1f(i))
@@ -668,7 +668,7 @@ void Coordinates::LaplacianX2All(const AthenaArray<Real> &s, AthenaArray<Real> &
     for (int n=nl; n<=nu; ++n) {
       for (int k=kl; k<=ku; ++k) {
         for (int j=jl; j<=ju; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
           for (int i=il; i<=iu; ++i) {
             delta_s(n,k,j,i) = (s(n,k,j,i-1) - 2.0*s(n,k,j,i) + s(n,k,j,i+1))
                                / (dx1f(i)*dx1f(i));
@@ -684,13 +684,13 @@ void Coordinates::LaplacianX3(const AthenaArray<Real> &s, AthenaArray<Real> &del
                               const int n, const int k, const int j,
                               const int il, const int iu) {
   if (pmy_block->block_size.nx2 > 1) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for(int i=il; i<=iu; ++i) {
       delta_s(i) = (s(n,k,j,i-1) - 2.0*s(n,k,j,i) + s(n,k,j,i+1)) / (dx1f(i)*dx1f(i))
                    + (s(n,k,j-1,i) - 2.0*s(n,k,j,i) + s(n,k,j+1,i)) / (dx2f(j)*dx2f(j));
     }
   } else {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for(int i=il; i<=iu; ++i) {
       delta_s(i) = (s(n,k,j,i-1) - 2.0*s(n,k,j,i) + s(n,k,j,i+1)) / (dx1f(i)*dx1f(i));
     }
@@ -705,7 +705,7 @@ void Coordinates::LaplacianX3All(const AthenaArray<Real> &s, AthenaArray<Real> &
     for (int n=nl; n<=nu; ++n) {
       for (int k=kl; k<=ku; ++k) {
         for (int j=jl; j<=ju; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
           for (int i=il; i<=iu; ++i) {
             delta_s(n,k,j,i) = (s(n,k,j,i-1) - 2.0*s(n,k,j,i) + s(n,k,j,i+1))
                                / (dx1f(i)*dx1f(i))
@@ -719,7 +719,7 @@ void Coordinates::LaplacianX3All(const AthenaArray<Real> &s, AthenaArray<Real> &
     for (int n=nl; n<=nu; ++n) {
       for (int k=kl; k<=ku; ++k) {
         for (int j=jl; j<=ju; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
           for (int i=il; i<=iu; ++i) {
             delta_s(n,k,j,i) = (s(n,k,j,i-1) - 2.0*s(n,k,j,i) + s(n,k,j,i+1))
                                / (dx1f(i)*dx1f(i));

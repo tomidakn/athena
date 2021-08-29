@@ -35,7 +35,7 @@ void Reconstruction::PiecewiseLinearX1(
 
   // compute L/R slopes for each variable
   for (int n=0; n<NHYDRO; ++n) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=il; i<=iu; ++i) {
       dwl(n,i) = (w(n,k,j,i  ) - w(n,k,j,i-1));
       dwr(n,i) = (w(n,k,j,i+1) - w(n,k,j,i  ));
@@ -43,7 +43,7 @@ void Reconstruction::PiecewiseLinearX1(
     }
   }
   if (MAGNETIC_FIELDS_ENABLED) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=il; i<=iu; ++i) {
       bx(i) = bcc(IB1,k,j,i);
 
@@ -68,7 +68,7 @@ void Reconstruction::PiecewiseLinearX1(
   // with uniform mesh spacing
   if (uniform[X1DIR] && !curvilinear[X1DIR]) {
     for (int n=0; n<NWAVE; ++n) {
-#pragma omp simd simdlen(SIMD_WIDTH)
+#pragma clang loop vectorize(assume_safety)
       for (int i=il; i<=iu; ++i) {
         Real dw2 = dwl(n,i)*dwr(n,i);
         dwm(n,i) = 2.0*dw2/(dwl(n,i) + dwr(n,i));
@@ -80,7 +80,7 @@ void Reconstruction::PiecewiseLinearX1(
     // coordinate with nonuniform mesh spacing or for any curvilinear coordinate spacing
   } else {
     for (int n=0; n<NWAVE; ++n) {
-#pragma omp simd simdlen(SIMD_WIDTH)
+#pragma clang loop vectorize(assume_safety)
       for (int i=il; i<=iu; ++i) {
         Real dqF =  dwr(n,i)*pco->dx1f(i)/pco->dx1v(i);
         Real dqB =  dwl(n,i)*pco->dx1f(i)/pco->dx1v(i-1);
@@ -111,7 +111,7 @@ void Reconstruction::PiecewiseLinearX1(
 
   // compute ql_(i+1/2) and qr_(i-1/2) using limited slopes
   for (int n=0; n<NWAVE; ++n) {
-#pragma omp simd simdlen(SIMD_WIDTH)
+#pragma clang loop vectorize(assume_safety)
     for (int i=il; i<=iu; ++i) {
       wl(n,i+1) = wc(n,i) + ((pco->x1f(i+1) - pco->x1v(i))/pco->dx1f(i))*dwm(n,i);
       wr(n,i  ) = wc(n,i) - ((pco->x1v(i  ) - pco->x1f(i))/pco->dx1f(i))*dwm(n,i);
@@ -119,7 +119,7 @@ void Reconstruction::PiecewiseLinearX1(
   }
 
   if (characteristic_projection) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=il; i<=iu; ++i) {
       // Reapply EOS floors to both L/R reconstructed primitive states
       // TODO(felker): check if fused loop with NWAVE redundant application is slower
@@ -148,7 +148,7 @@ void Reconstruction::PiecewiseLinearX2(
 
   // compute L/R slopes for each variable
   for (int n=0; n<NHYDRO; ++n) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=il; i<=iu; ++i) {
       dwl(n,i) = (w(n,k,j  ,i) - w(n,k,j-1,i));
       dwr(n,i) = (w(n,k,j+1,i) - w(n,k,j  ,i));
@@ -157,7 +157,7 @@ void Reconstruction::PiecewiseLinearX2(
   }
 
   if (MAGNETIC_FIELDS_ENABLED) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=il; i<=iu; ++i) {
       bx(i) = bcc(IB2,k,j,i);
 
@@ -182,7 +182,7 @@ void Reconstruction::PiecewiseLinearX2(
   // with uniform mesh spacing
   if (uniform[X2DIR] && !curvilinear[X2DIR]) {
     for (int n=0; n<NWAVE; ++n) {
-#pragma omp simd simdlen(SIMD_WIDTH)
+#pragma clang loop vectorize(assume_safety)
       for (int i=il; i<=iu; ++i) {
         Real dw2 = dwl(n,i)*dwr(n,i);
         dwm(n,i) = 2.0*dw2/(dwl(n,i) + dwr(n,i));
@@ -198,7 +198,7 @@ void Reconstruction::PiecewiseLinearX2(
     Real dxF = pco->dx2f(j)/pco->dx2v(j); // dimensionless, not technically a dx quantity
     Real dxB = pco->dx2f(j)/pco->dx2v(j-1);
     for (int n=0; n<NWAVE; ++n) {
-#pragma omp simd simdlen(SIMD_WIDTH)
+#pragma clang loop vectorize(assume_safety)
       for (int i=il; i<=iu; ++i) {
         Real dqF =  dwr(n,i)*dxF;
         Real dqB =  dwl(n,i)*dxB;
@@ -226,7 +226,7 @@ void Reconstruction::PiecewiseLinearX2(
   Real dxp = (pco->x2f(j+1) - pco->x2v(j))/pco->dx2f(j);
   Real dxm = (pco->x2v(j  ) - pco->x2f(j))/pco->dx2f(j);
   for (int n=0; n<NWAVE; ++n) {
-#pragma omp simd simdlen(SIMD_WIDTH)
+#pragma clang loop vectorize(assume_safety)
     for (int i=il; i<=iu; ++i) {
       wl(n,i) = wc(n,i) + dxp*dwm(n,i);
       wr(n,i) = wc(n,i) - dxm*dwm(n,i);
@@ -234,7 +234,7 @@ void Reconstruction::PiecewiseLinearX2(
   }
 
   if (characteristic_projection) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=il; i<=iu; ++i) {
       // Reapply EOS floors to both L/R reconstructed primitive states
       pmy_block_->peos->ApplyPrimitiveFloors(wl, k, j, i);
@@ -262,7 +262,7 @@ void Reconstruction::PiecewiseLinearX3(
 
   // compute L/R slopes for each variable
   for (int n=0; n<NHYDRO; ++n) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=il; i<=iu; ++i) {
       dwl(n,i) = (w(n,k  ,j,i) - w(n,k-1,j,i));
       dwr(n,i) = (w(n,k+1,j,i) - w(n,k  ,j,i));
@@ -270,7 +270,7 @@ void Reconstruction::PiecewiseLinearX3(
     }
   }
   if (MAGNETIC_FIELDS_ENABLED) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=il; i<=iu; ++i) {
       bx(i) = bcc(IB3,k,j,i);
 
@@ -296,7 +296,7 @@ void Reconstruction::PiecewiseLinearX3(
   // with uniform mesh spacing
   if (uniform[X3DIR]) {
     for (int n=0; n<NWAVE; ++n) {
-#pragma omp simd simdlen(SIMD_WIDTH)
+#pragma clang loop vectorize(assume_safety)
       for (int i=il; i<=iu; ++i) {
         Real dw2 = dwl(n,i)*dwr(n,i);
         dwm(n,i) = 2.0*dw2/(dwl(n,i) + dwr(n,i));
@@ -309,7 +309,7 @@ void Reconstruction::PiecewiseLinearX3(
     Real dxF = pco->dx3f(k)/pco->dx3v(k);
     Real dxB = pco->dx3f(k)/pco->dx3v(k-1);
     for (int n=0; n<NWAVE; ++n) {
-#pragma omp simd simdlen(SIMD_WIDTH)
+#pragma clang loop vectorize(assume_safety)
       for (int i=il; i<=iu; ++i) {
         Real dqF =  dwr(n,i)*dxF;
         Real dqB =  dwl(n,i)*dxB;
@@ -332,7 +332,7 @@ void Reconstruction::PiecewiseLinearX3(
   Real dxp = (pco->x3f(k+1) - pco->x3v(k))/pco->dx3f(k);
   Real dxm = (pco->x3v(k  ) - pco->x3f(k))/pco->dx3f(k);
   for (int n=0; n<NWAVE; ++n) {
-#pragma omp simd simdlen(SIMD_WIDTH)
+#pragma clang loop vectorize(assume_safety)
     for (int i=il; i<=iu; ++i) {
       wl(n,i) = wc(n,i) + dxp*dwm(n,i);
       wr(n,i) = wc(n,i) - dxm*dwm(n,i);
@@ -340,7 +340,7 @@ void Reconstruction::PiecewiseLinearX3(
   }
 
   if (characteristic_projection) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=il; i<=iu; ++i) {
       // Reapply EOS floors to both L/R reconstructed primitive states
       pmy_block_->peos->ApplyPrimitiveFloors(wl, k, j, i);

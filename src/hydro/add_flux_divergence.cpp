@@ -52,7 +52,7 @@ void Hydro::AddFluxDivergence(const Real wght, AthenaArray<Real> &u_out) {
       // calculate x1-flux divergence
       pmb->pcoord->Face1Area(k, j, is, ie+1, x1area);
       for (int n=0; n<NHYDRO; ++n) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
         for (int i=is; i<=ie; ++i) {
           dflx(n,i) = (x1area(i+1)*x1flux(n,k,j,i+1) - x1area(i)*x1flux(n,k,j,i));
         }
@@ -63,7 +63,7 @@ void Hydro::AddFluxDivergence(const Real wght, AthenaArray<Real> &u_out) {
         pmb->pcoord->Face2Area(k, j  , is, ie, x2area   );
         pmb->pcoord->Face2Area(k, j+1, is, ie, x2area_p1);
         for (int n=0; n<NHYDRO; ++n) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
           for (int i=is; i<=ie; ++i) {
             dflx(n,i) += (x2area_p1(i)*x2flux(n,k,j+1,i) - x2area(i)*x2flux(n,k,j,i));
           }
@@ -75,7 +75,7 @@ void Hydro::AddFluxDivergence(const Real wght, AthenaArray<Real> &u_out) {
         pmb->pcoord->Face3Area(k  , j, is, ie, x3area   );
         pmb->pcoord->Face3Area(k+1, j, is, ie, x3area_p1);
         for (int n=0; n<NHYDRO; ++n) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
           for (int i=is; i<=ie; ++i) {
             dflx(n,i) += (x3area_p1(i)*x3flux(n,k+1,j,i) - x3area(i)*x3flux(n,k,j,i));
           }
@@ -85,7 +85,7 @@ void Hydro::AddFluxDivergence(const Real wght, AthenaArray<Real> &u_out) {
       // update conserved variables
       pmb->pcoord->CellVolume(k, j, is, ie, vol);
       for (int n=0; n<NHYDRO; ++n) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
         for (int i=is; i<=ie; ++i) {
           u_out(n,k,j,i) -= wght*dflx(n,i)/vol(i);
         }
@@ -122,7 +122,7 @@ void Hydro::AddFluxDivergence_STS(const Real wght, int stage,
       pmb->pcoord->Face1Area(k, j, is, ie+1, x1area);
       for (int n=0; n<NHYDRO; ++n) {
         if (std::binary_search(idx_subset.begin(), idx_subset.end(), n)) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
           for (int i=is; i<=ie; ++i) {
             dflx(n,i) = (x1area(i+1) *x1flux(n,k,j,i+1) - x1area(i)*x1flux(n,k,j,i));
           }
@@ -135,7 +135,7 @@ void Hydro::AddFluxDivergence_STS(const Real wght, int stage,
         pmb->pcoord->Face2Area(k, j+1, is, ie, x2area_p1);
         for (int n=0; n<NHYDRO; ++n) {
           if (std::binary_search(idx_subset.begin(), idx_subset.end(), n)) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
             for (int i=is; i<=ie; ++i) {
               dflx(n,i) += (x2area_p1(i)*x2flux(n,k,j+1,i) - x2area(i)*x2flux(n,k,j,i));
             }
@@ -149,7 +149,7 @@ void Hydro::AddFluxDivergence_STS(const Real wght, int stage,
         pmb->pcoord->Face3Area(k+1, j, is, ie, x3area_p1);
         for (int n=0; n<NHYDRO; ++n) {
           if (std::binary_search(idx_subset.begin(), idx_subset.end(), n)) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
             for (int i=is; i<=ie; ++i) {
               dflx(n,i) += (x3area_p1(i)*x3flux(n,k+1,j,i) - x3area(i)*x3flux(n,k,j,i));
             }
@@ -161,11 +161,16 @@ void Hydro::AddFluxDivergence_STS(const Real wght, int stage,
       pmb->pcoord->CellVolume(k, j, is, ie, vol);
       for (int n=0; n<NHYDRO; ++n) {
         if (std::binary_search(idx_subset.begin(), idx_subset.end(), n)) {
-#pragma omp simd
-          for (int i=is; i<=ie; ++i) {
-            u_out(n,k,j,i) -= wght*dflx(n,i)/vol(i);
-            if (stage == 1 && pmb->pmy_mesh->sts_integrator == "rkl2") {
+          if (stage == 1 && pmb->pmy_mesh->sts_integrator == "rkl2") {
+#pragma clang loop vectorize(assume_safety)
+            for (int i=is; i<=ie; ++i) {
+              u_out(n,k,j,i) -= wght*dflx(n,i)/vol(i);
               fl_div_out(n,k,j,i) = -0.5*pmb->pmy_mesh->dt*dflx(n,i)/vol(i);
+            }
+          } else {
+#pragma clang loop vectorize(assume_safety)
+            for (int i=is; i<=ie; ++i) {
+              u_out(n,k,j,i) -= wght*dflx(n,i)/vol(i);
             }
           }
         }

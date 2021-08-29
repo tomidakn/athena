@@ -44,7 +44,7 @@ void Field::CT(const Real wght, FaceField &b_out) {
         pmb->pcoord->Face1Area(k,j,is,ie+1,area);
         pmb->pcoord->Edge3Length(k,j  ,is,ie+1,len);
         pmb->pcoord->Edge3Length(k,j+1,is,ie+1,len_p1);
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
         for (int i=is; i<=ie+1; ++i) {
           b_out.x1f(k,j,i) -=
               (wght/area(i))*(len_p1(i)*e3(k,j+1,i) - len(i)*e3(k,j,i));
@@ -53,7 +53,7 @@ void Field::CT(const Real wght, FaceField &b_out) {
         if (pmb->block_size.nx3 > 1) {
           pmb->pcoord->Edge2Length(k  ,j,is,ie+1,len);
           pmb->pcoord->Edge2Length(k+1,j,is,ie+1,len_p1);
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
           for (int i=is; i<=ie+1; ++i) {
             b_out.x1f(k,j,i) +=
                 (wght/area(i))*(len_p1(i)*e2(k+1,j,i) - len(i)*e2(k,j,i));
@@ -76,14 +76,14 @@ void Field::CT(const Real wght, FaceField &b_out) {
     for (int j=jl; j<=ju; ++j) {
       pmb->pcoord->Face2Area(k,j,is,ie,area);
       pmb->pcoord->Edge3Length(k,j,is,ie+1,len);
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
       for (int i=is; i<=ie; ++i) {
         b_out.x2f(k,j,i) += (wght/area(i))*(len(i+1)*e3(k,j,i+1) - len(i)*e3(k,j,i));
       }
       if (pmb->block_size.nx3 > 1) {
         pmb->pcoord->Edge1Length(k  ,j,is,ie,len);
         pmb->pcoord->Edge1Length(k+1,j,is,ie,len_p1);
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
         for (int i=is; i<=ie; ++i) {
           b_out.x2f(k,j,i) -=
               (wght/area(i))*(len_p1(i)*e1(k+1,j,i) - len(i)*e1(k,j,i));
@@ -97,14 +97,14 @@ void Field::CT(const Real wght, FaceField &b_out) {
     for (int j=js; j<=je; ++j) {
       pmb->pcoord->Face3Area(k,j,is,ie,area);
       pmb->pcoord->Edge2Length(k,j,is,ie+1,len);
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
       for (int i=is; i<=ie; ++i) {
         b_out.x3f(k,j,i) -= (wght/area(i))*(len(i+1)*e2(k,j,i+1) - len(i)*e2(k,j,i));
       }
       if (pmb->block_size.nx2 > 1) {
         pmb->pcoord->Edge1Length(k,j  ,is,ie,len);
         pmb->pcoord->Edge1Length(k,j+1,is,ie,len_p1);
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
         for (int i=is; i<=ie; ++i) {
           b_out.x3f(k,j,i) +=
               (wght/area(i))*(len_p1(i)*e1(k,j+1,i) - len(i)*e1(k,j,i));
@@ -131,14 +131,14 @@ void Field::CT_STS(const Real wght, int stage,
 
   if (stage == 1 && pmb->pmy_mesh->sts_integrator == "rkl2") {
   //---- update B1
-    for (int k=ks; k<=ke; ++k) {
-      for (int j=js; j<=je; ++j) {
+    if (pmb->block_size.nx2 > 1) {
+      for (int k=ks; k<=ke; ++k) {
+        for (int j=js; j<=je; ++j) {
         // add curl(E) in 2D and 3D problem
-        if (pmb->block_size.nx2 > 1) {
           pmb->pcoord->Face1Area(k,j,is,ie+1,area);
           pmb->pcoord->Edge3Length(k,j  ,is,ie+1,len);
           pmb->pcoord->Edge3Length(k,j+1,is,ie+1,len_p1);
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
           for (int i=is; i<=ie+1; ++i) {
             Real db13 = (len_p1(i)*e3(k,j+1,i) - len(i)*e3(k,j,i))/area(i);
             b_out.x1f(k,j,i) -= wght*db13;
@@ -147,7 +147,7 @@ void Field::CT_STS(const Real wght, int stage,
           if (pmb->block_size.nx3 > 1) {
             pmb->pcoord->Edge2Length(k  ,j,is,ie+1,len);
             pmb->pcoord->Edge2Length(k+1,j,is,ie+1,len_p1);
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
             for (int i=is; i<=ie+1; ++i) {
               Real db12 = (len_p1(i)*e2(k+1,j,i) - len(i)*e2(k,j,i))/area(i);
               b_out.x1f(k,j,i) += wght*db12;
@@ -171,7 +171,7 @@ void Field::CT_STS(const Real wght, int stage,
       for (int j=jl; j<=ju; ++j) {
         pmb->pcoord->Face2Area(k,j,is,ie,area);
         pmb->pcoord->Edge3Length(k,j,is,ie+1,len);
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
         for (int i=is; i<=ie; ++i) {
           Real db23 = (len(i+1)*e3(k,j,i+1) - len(i)*e3(k,j,i))/area(i);
           b_out.x2f(k,j,i) += wght*db23;
@@ -180,7 +180,7 @@ void Field::CT_STS(const Real wght, int stage,
         if (pmb->block_size.nx3 > 1) {
           pmb->pcoord->Edge1Length(k  ,j,is,ie,len);
           pmb->pcoord->Edge1Length(k+1,j,is,ie,len_p1);
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
           for (int i=is; i<=ie; ++i) {
             Real db21 = (len_p1(i)*e1(k+1,j,i) - len(i)*e1(k,j,i))/area(i);
             b_out.x2f(k,j,i) -= wght*db21;
@@ -195,7 +195,7 @@ void Field::CT_STS(const Real wght, int stage,
       for (int j=js; j<=je; ++j) {
         pmb->pcoord->Face3Area(k,j,is,ie,area);
         pmb->pcoord->Edge2Length(k,j,is,ie+1,len);
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
         for (int i=is; i<=ie; ++i) {
           Real db32 = (len(i+1)*e2(k,j,i+1) - len(i)*e2(k,j,i))/area(i);
           b_out.x3f(k,j,i) -= wght*db32;
@@ -204,7 +204,7 @@ void Field::CT_STS(const Real wght, int stage,
         if (pmb->block_size.nx2 > 1) {
           pmb->pcoord->Edge1Length(k,j  ,is,ie,len);
           pmb->pcoord->Edge1Length(k,j+1,is,ie,len_p1);
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
           for (int i=is; i<=ie; ++i) {
             Real db31 = (len_p1(i)*e1(k,j+1,i) - len(i)*e1(k,j,i))/area(i);
             b_out.x3f(k,j,i) += wght*db31;
@@ -215,14 +215,14 @@ void Field::CT_STS(const Real wght, int stage,
     }
   } else {
   //---- update B1
-    for (int k=ks; k<=ke; ++k) {
-      for (int j=js; j<=je; ++j) {
+    if (pmb->block_size.nx2 > 1) {
+      for (int k=ks; k<=ke; ++k) {
+        for (int j=js; j<=je; ++j) {
         // add curl(E) in 2D and 3D problem
-        if (pmb->block_size.nx2 > 1) {
           pmb->pcoord->Face1Area(k,j,is,ie+1,area);
           pmb->pcoord->Edge3Length(k,j  ,is,ie+1,len);
           pmb->pcoord->Edge3Length(k,j+1,is,ie+1,len_p1);
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
           for (int i=is; i<=ie+1; ++i) {
             b_out.x1f(k,j,i) -=
                 (wght/area(i))*(len_p1(i)*e3(k,j+1,i) - len(i)*e3(k,j,i));
@@ -231,7 +231,7 @@ void Field::CT_STS(const Real wght, int stage,
           if (pmb->block_size.nx3 > 1) {
             pmb->pcoord->Edge2Length(k  ,j,is,ie+1,len);
             pmb->pcoord->Edge2Length(k+1,j,is,ie+1,len_p1);
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
             for (int i=is; i<=ie+1; ++i) {
               b_out.x1f(k,j,i) +=
                 (wght/area(i))*(len_p1(i)*e2(k+1,j,i) - len(i)*e2(k,j,i));
@@ -254,14 +254,14 @@ void Field::CT_STS(const Real wght, int stage,
       for (int j=jl; j<=ju; ++j) {
         pmb->pcoord->Face2Area(k,j,is,ie,area);
         pmb->pcoord->Edge3Length(k,j,is,ie+1,len);
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
         for (int i=is; i<=ie; ++i) {
           b_out.x2f(k,j,i) += (wght/area(i))*(len(i+1)*e3(k,j,i+1) - len(i)*e3(k,j,i));
         }
         if (pmb->block_size.nx3 > 1) {
           pmb->pcoord->Edge1Length(k  ,j,is,ie,len);
           pmb->pcoord->Edge1Length(k+1,j,is,ie,len_p1);
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
           for (int i=is; i<=ie; ++i) {
             b_out.x2f(k,j,i) -=
               (wght/area(i))*(len_p1(i)*e1(k+1,j,i) - len(i)*e1(k,j,i));
@@ -275,14 +275,14 @@ void Field::CT_STS(const Real wght, int stage,
       for (int j=js; j<=je; ++j) {
         pmb->pcoord->Face3Area(k,j,is,ie,area);
         pmb->pcoord->Edge2Length(k,j,is,ie+1,len);
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
         for (int i=is; i<=ie; ++i) {
           b_out.x3f(k,j,i) -= (wght/area(i))*(len(i+1)*e2(k,j,i+1) - len(i)*e2(k,j,i));
         }
         if (pmb->block_size.nx2 > 1) {
           pmb->pcoord->Edge1Length(k,j  ,is,ie,len);
           pmb->pcoord->Edge1Length(k,j+1,is,ie,len_p1);
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
           for (int i=is; i<=ie; ++i) {
             b_out.x3f(k,j,i) +=
                 (wght/area(i))*(len_p1(i)*e1(k,j+1,i) - len(i)*e1(k,j,i));

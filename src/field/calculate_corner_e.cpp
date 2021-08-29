@@ -174,7 +174,7 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
           cc_e_(IB3,k,j,i) = (u2 * bcc(IB1,k,j,i) - u1 * bcc(IB2,k,j,i)) / u0;
         }
 #else  // Newtonian
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
         for (int i=is-1; i<=ie+1; ++i) {
           cc_e_(IB1,k,j,i) = w(IVZ,k,j,i)*bcc(IB2,k,j,i) - w(IVY,k,j,i)*bcc(IB3,k,j,i);
           cc_e_(IB2,k,j,i) = w(IVX,k,j,i)*bcc(IB3,k,j,i) - w(IVZ,k,j,i)*bcc(IB1,k,j,i);
@@ -186,7 +186,9 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
 
     for (int k=ks; k<=ke+1; ++k) {
       for (int j=js; j<=je+1; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
+#pragma fj loop loop_fission_target
+#pragma fj loop loop_fission_threshold 1
         for (int i=is; i<=ie+1; ++i) {
           // integrate E1,E2,E3 to corner using SG07
           Real de1_l3 = (1.0-w_x2f(k-1,j,i))*(e1_x3f(k,j  ,i) - cc_e_(IB1,k-1,j  ,i)) +

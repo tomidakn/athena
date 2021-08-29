@@ -140,21 +140,21 @@ void HydroDiffusion::AddDiffusionEnergyFlux(AthenaArray<Real> *flux_src,
   // assume this is only for 3D
   for (int k=ks; k<=ke; ++k) {
     for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
       for (int i=is; i<=ie+1; ++i)
         x1flux(IEN,k,j,i) += x1diflx(k,j,i);
     }
   }
   for (int k=ks; k<=ke; ++k) {
     for (int j=js; j<=je+1; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
       for (int i=is; i<=ie; ++i)
         x2flux(IEN,k,j,i) += x2diflx(k,j,i);
     }
   }
   for (int k=ks; k<=ke+1; ++k) {
     for (int j=js; j<=je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
       for (int i=is; i<=ie; ++i)
         x3flux(IEN,k,j,i) += x3diflx(k,j,i);
     }
@@ -173,19 +173,19 @@ void HydroDiffusion::AddDiffusionEnergyFlux(AthenaArray<Real> *flux_src,
 void HydroDiffusion::AddDiffusionFlux(AthenaArray<Real> *flux_src,
                                       AthenaArray<Real> *flux_des) {
   int size1 = flux_des[X1DIR].GetSize();
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=0; i<size1; ++i)
     flux_des[X1DIR](i) += flux_src[X1DIR](i);
 
   if (pmb_->block_size.nx2 > 1) {
     int size2 = flux_des[X2DIR].GetSize();
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=0; i<size2; ++i)
       flux_des[X2DIR](i) += flux_src[X2DIR](i);
   }
   if (pmb_->block_size.nx3 > 1) {
     int size3 = flux_des[X3DIR].GetSize();
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=0; i<size3; ++i)
       flux_des[X3DIR](i) += flux_src[X3DIR](i);
   }
@@ -264,44 +264,46 @@ void HydroDiffusion::NewDiffusionDt(Real &dt_vis, Real &dt_cnd) {
 
   for (int k=kl; k<=ku; ++k) {
     for (int j=jl; j<=ju; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
       for (int i=il; i<=iu; ++i) {
         nu_t(i) = 0.0;
         kappa_t(i) = 0.0;
       }
       if (nu_iso > 0.0) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
         for (int i=il; i<=iu; ++i) nu_t(i) += nu(DiffProcess::iso,k,j,i);
       }
       if (nu_aniso > 0.0) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
         for (int i=il; i<=iu; ++i) nu_t(i) += nu(DiffProcess::aniso,k,j,i);
       }
       if (kappa_iso > 0.0) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
         for (int i=il; i<=iu; ++i) kappa_t(i) += kappa(DiffProcess::iso,k,j,i);
       }
       if (kappa_aniso > 0.0) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
         for (int i=il; i<=iu; ++i) kappa_t(i) += kappa(DiffProcess::aniso,k,j,i);
       }
       pmb_->pcoord->CenterWidth1(k, j, il, iu, len);
       pmb_->pcoord->CenterWidth2(k, j, il, iu, dx2);
       pmb_->pcoord->CenterWidth3(k, j, il, iu, dx3);
-#pragma omp simd
+      // assume 3D
+#pragma clang loop vectorize(assume_safety)
       for (int i=il; i<=iu; ++i) {
-        len(i) = (f2) ? std::min(len(i), dx2(i)) : len(i);
-        len(i) = (f3) ? std::min(len(i), dx3(i)) : len(i);
+        len(i) = std::min(std::min(len(i), dx2(i)), dx3(i));
       }
       if ((nu_iso > 0.0) || (nu_aniso > 0.0)) {
+#pragma clang loop vectorize(assume_safety)
         for (int i=il; i<=iu; ++i)
-          dt_vis = std::min(dt_vis, static_cast<Real>(
-              SQR(len(i))*fac/(nu_t(i) + TINY_NUMBER)));
+          dt_vis = std::min(dt_vis,
+              SQR(len(i))*fac/(nu_t(i) + TINY_NUMBER));
       }
       if ((kappa_iso > 0.0) || (kappa_aniso > 0.0)) {
+#pragma clang loop vectorize(assume_safety)
         for (int i=il; i<=iu; ++i)
-          dt_cnd = std::min(dt_cnd, static_cast<Real>(
-              SQR(len(i))*fac/(kappa_t(i) + TINY_NUMBER)));
+          dt_cnd = std::min(dt_cnd,
+              SQR(len(i))*fac/(kappa_t(i) + TINY_NUMBER));
       }
     }
   }

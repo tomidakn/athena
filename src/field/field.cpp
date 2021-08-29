@@ -118,61 +118,98 @@ void Field::CalculateCellCenteredField(
   const bool uniform_ave_x2 = pmy_block->precon->uniform[X2DIR];
   const bool uniform_ave_x3 = pmy_block->precon->uniform[X3DIR];
 
-  for (int k=kl; k<=ku; ++k) {
-    for (int j=jl; j<=ju; ++j) {
-      // calc cell centered fields first
-#pragma omp simd
-      for (int i=il; i<=iu; ++i) {
-        const Real& b1_i   = bf.x1f(k,j,i  );
-        const Real& b1_ip1 = bf.x1f(k,j,i+1);
-        const Real& b2_j   = bf.x2f(k,j  ,i);
-        const Real& b2_jp1 = bf.x2f(k,j+1,i);
-        const Real& b3_k   = bf.x3f(k  ,j,i);
-        const Real& b3_kp1 = bf.x3f(k+1,j,i);
-
-        Real& bcc1 = bc(IB1,k,j,i);
-        Real& bcc2 = bc(IB2,k,j,i);
-        Real& bcc3 = bc(IB3,k,j,i);
-        Real lw, rw; // linear interpolation coefficients from lower and upper cell faces
-
-        // cell center B-fields are defined as spatial interpolation at the volume center
-        if (uniform_ave_x1) {
-          lw = 0.5;
-          rw = 0.5;
-        } else {
+  // calc cell centered fields first
+  // cell center B-fields are defined as spatial interpolation at the volume center
+  if (uniform_ave_x1) {
+    for (int k=kl; k<=ku; ++k) {
+      for (int j=jl; j<=ju; ++j) {
+#pragma clang loop vectorize(assume_safety)
+        for (int i=il; i<=iu; ++i) {
+          const Real& b1_i   = bf.x1f(k,j,i  );
+          const Real& b1_ip1 = bf.x1f(k,j,i+1);
+          Real& bcc1 = bc(IB1,k,j,i);
+          bcc1 = 0.5 * (b1_i + b1_ip1);
+        }
+      }
+    }
+  } else {
+    for (int k=kl; k<=ku; ++k) {
+      for (int j=jl; j<=ju; ++j) {
+#pragma clang loop vectorize(assume_safety)
+        for (int i=il; i<=iu; ++i) {
+          const Real& b1_i   = bf.x1f(k,j,i  );
+          const Real& b1_ip1 = bf.x1f(k,j,i+1);
+          Real& bcc1 = bc(IB1,k,j,i);
           const Real& x1f_i  = pco->x1f(i);
           const Real& x1f_ip = pco->x1f(i+1);
           const Real& x1v_i  = pco->x1v(i);
           const Real& dx1_i  = pco->dx1f(i);
-          lw = (x1f_ip - x1v_i)/dx1_i;
-          rw = (x1v_i  - x1f_i)/dx1_i;
+          Real lw = (x1f_ip - x1v_i)/dx1_i;
+          Real rw = (x1v_i  - x1f_i)/dx1_i;
+          bcc1 = lw*b1_i + rw*b1_ip1;
         }
-        bcc1 = lw*b1_i + rw*b1_ip1;
-
-        if (uniform_ave_x2) {
-          lw = 0.5;
-          rw = 0.5;
-        } else {
+      }
+    }
+  }
+  if (uniform_ave_x2) {
+    for (int k=kl; k<=ku; ++k) {
+      for (int j=jl; j<=ju; ++j) {
+#pragma clang loop vectorize(assume_safety)
+        for (int i=il; i<=iu; ++i) {
+          const Real& b2_j   = bf.x2f(k,j  ,i);
+          const Real& b2_jp1 = bf.x2f(k,j+1,i);
+          Real& bcc2 = bc(IB2,k,j,i);
+          bcc2 = 0.5 * (b2_j + b2_jp1);
+        }
+      }
+    }
+  } else {
+    for (int k=kl; k<=ku; ++k) {
+      for (int j=jl; j<=ju; ++j) {
+#pragma clang loop vectorize(assume_safety)
+        for (int i=il; i<=iu; ++i) {
+          const Real& b2_j   = bf.x2f(k,j  ,i);
+          const Real& b2_jp1 = bf.x2f(k,j+1,i);
+          Real& bcc2 = bc(IB2,k,j,i);
           const Real& x2f_j  = pco->x2f(j);
           const Real& x2f_jp = pco->x2f(j+1);
           const Real& x2v_j  = pco->x2v(j);
           const Real& dx2_j  = pco->dx2f(j);
-          lw = (x2f_jp - x2v_j)/dx2_j;
-          rw = (x2v_j  - x2f_j)/dx2_j;
+          Real lw = (x2f_jp - x2v_j)/dx2_j;
+          Real rw = (x2v_j  - x2f_j)/dx2_j;
+          bcc2 = lw*b2_j + rw*b2_jp1;
         }
-        bcc2 = lw*b2_j + rw*b2_jp1;
-        if (uniform_ave_x3) {
-          lw = 0.5;
-          rw = 0.5;
-        } else {
+      }
+    }
+  }
+  if (uniform_ave_x3) {
+    for (int k=kl; k<=ku; ++k) {
+      for (int j=jl; j<=ju; ++j) {
+#pragma clang loop vectorize(assume_safety)
+        for (int i=il; i<=iu; ++i) {
+          const Real& b3_k   = bf.x3f(k  ,j,i);
+          const Real& b3_kp1 = bf.x3f(k+1,j,i);
+          Real& bcc3 = bc(IB3,k,j,i);
+          bcc3 = 0.5 * (b3_k + b3_kp1);
+        }
+      }
+    }
+  } else {
+    for (int k=kl; k<=ku; ++k) {
+      for (int j=jl; j<=ju; ++j) {
+#pragma clang loop vectorize(assume_safety)
+        for (int i=il; i<=iu; ++i) {
+          const Real& b3_k   = bf.x3f(k  ,j,i);
+          const Real& b3_kp1 = bf.x3f(k+1,j,i);
+          Real& bcc3 = bc(IB3,k,j,i);
           const Real& x3f_k  = pco->x3f(k);
           const Real& x3f_kp = pco->x3f(k+1);
           const Real& x3v_k  = pco->x3v(k);
           const Real& dx3_k  = pco->dx3f(k);
-          lw = (x3f_kp - x3v_k)/dx3_k;
-          rw = (x3v_k  - x3f_k)/dx3_k;
+          Real lw = (x3f_kp - x3v_k)/dx3_k;
+          Real rw = (x3v_k  - x3f_k)/dx3_k;
+          bcc3 = lw*b3_k + rw*b3_kp1;
         }
-        bcc3 = lw*b3_k + rw*b3_kp1;
       }
     }
   }

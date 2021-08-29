@@ -68,7 +68,7 @@ void Hydro::NewBlockTimeStep() {
       pmb->pcoord->CenterWidth1(k, j, is, ie, dt1);
       pmb->pcoord->CenterWidth2(k, j, is, ie, dt2);
       pmb->pcoord->CenterWidth3(k, j, is, ie, dt3);
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
       for (int i=is; i<=ie; ++i) {
         Real idn = 1.0/w(IDN,k,j,i);
         Real wvx = w(IVX,k,j,i);
@@ -96,14 +96,14 @@ void Hydro::NewBlockTimeStep() {
       }
 
       // compute minimum of (v1 +/- C)
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
       for (int i=is; i<=ie; ++i) {
         min_dt_hyperbolic = std::min(min_dt_hyperbolic, dt1(i));
       }
 
       // if grid is 2D/3D, compute minimum of (v2 +/- C)
       if (pmb->block_size.nx2 > 1) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
         for (int i=is; i<=ie; ++i) {
           min_dt_hyperbolic = std::min(min_dt_hyperbolic, dt2(i));
         }
@@ -111,7 +111,7 @@ void Hydro::NewBlockTimeStep() {
 
       // if grid is 3D, compute minimum of (v3 +/- C)
       if (pmb->block_size.nx3 > 1) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
         for (int i=is; i<=ie; ++i) {
           min_dt_hyperbolic = std::min(min_dt_hyperbolic, dt3(i));
         }

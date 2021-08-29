@@ -31,7 +31,7 @@ void Reconstruction::DonorCellX1(const int k, const int j, const int il, const i
 
   // compute L/R states for each variable
   for (int n=0; n<=nu; ++n) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=il; i<=iu; ++i) {
       ql(n,i+1) =  qr(n,i) = q(n,k,j,i);
     }
@@ -52,7 +52,7 @@ void Reconstruction::DonorCellX2(const int k, const int j, const int il, const i
   const int nu = q.GetDim4() - 1;
   // compute L/R states for each variable
   for (int n=0; n<=nu; ++n) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=il; i<=iu; ++i) {
       ql(n,i) = qr(n,i) = q(n,k,j,i);
     }
@@ -73,7 +73,7 @@ void Reconstruction::DonorCellX3(const int k, const int j, const int il, const i
   const int nu = q.GetDim4() - 1;
   // compute L/R states for each variable
   for (int n=0; n<=nu; ++n) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=il; i<=iu; ++i) {
       ql(n,i) = qr(n,i) = q(n,k,j,i);
     }

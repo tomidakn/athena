@@ -48,12 +48,14 @@ void EquationOfState::ConservedToPrimitive(
 
   for (int k=kl; k<=ku; ++k) {
     for (int j=jl; j<=ju; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
+#pragma fj loop loop_fission_target
+#pragma fj loop loop_fission_threshold 1
       for (int i=il; i<=iu; ++i) {
         Real& u_d  = cons(IDN,k,j,i);
-        Real& u_m1 = cons(IVX,k,j,i);
-        Real& u_m2 = cons(IVY,k,j,i);
-        Real& u_m3 = cons(IVZ,k,j,i);
+        const Real& u_m1 = cons(IVX,k,j,i);
+        const Real& u_m2 = cons(IVY,k,j,i);
+        const Real& u_m3 = cons(IVZ,k,j,i);
         Real& u_e  = cons(IEN,k,j,i);
 
         Real& w_d  = prim(IDN,k,j,i);
@@ -104,7 +106,9 @@ void EquationOfState::PrimitiveToConserved(
 
   for (int k=kl; k<=ku; ++k) {
     for (int j=jl; j<=ju; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
+#pragma fj loop loop_fission_target
+#pragma fj loop loop_fission_threshold 1
       for (int i=il; i<=iu; ++i) {
         Real& u_d  = cons(IDN,k,j,i);
         Real& u_m1 = cons(IM1,k,j,i);

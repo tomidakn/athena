@@ -44,7 +44,7 @@ void Reconstruction::LeftEigenmatrixDotVector(
     // Adiabatic MHD ---------------------------------------------------------------------
     if (NON_BAROTROPIC_EOS) {
       Real gamma = pmy_block_->peos->GetGamma();
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
       for (int i=il; i<=iu; ++i) {
         Real id = 1.0/w(IDN,i);
         Real sqrtd = std::sqrt(w(IDN,i));
@@ -135,7 +135,7 @@ void Reconstruction::LeftEigenmatrixDotVector(
     } else {
       Real iso_cs = pmy_block_->peos->GetIsoSoundSpeed();
       Real iso_cs2 = SQR(iso_cs);
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
       for (int i=il; i<=iu; ++i) {
         Real id = 1.0/w(IDN,i);
         Real sqrtd = std::sqrt(w(IDN,i));
@@ -221,7 +221,7 @@ void Reconstruction::LeftEigenmatrixDotVector(
     // Adiabatic hydrodynamics -----------------------------------------------------------
     if (NON_BAROTROPIC_EOS) {
       Real gamma = pmy_block_->peos->GetGamma();
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
       for (int i=il; i<=iu; ++i) {
         Real asq = gamma*w(IPR,i)/w(IDN,i);
         Real a   = std::sqrt(asq);
@@ -243,7 +243,7 @@ void Reconstruction::LeftEigenmatrixDotVector(
       // Isothermal hydrodynamics --------------------------------------------------------
     } else {
       Real iso_cs = pmy_block_->peos->GetIsoSoundSpeed();
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
       for (int i=il; i<=iu; ++i) {
         // Multiply row of L-eigenmatrix with vector using matrix elements from eq. A7
         Real v_0 = 0.5*(vect(IDN,i) - w(IDN,i)*vect(ivx,i)/iso_cs);
@@ -288,7 +288,7 @@ void Reconstruction::RightEigenmatrixDotVector(
     // Adiabatic MHD ---------------------------------------------------------------------
     if (NON_BAROTROPIC_EOS) {
       Real gamma = pmy_block_->peos->GetGamma();
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
       for (int i=il; i<=iu; ++i) {
         Real id = 1.0/w(IDN,i);
         Real sqrtd = std::sqrt(w(IDN,i));
@@ -375,7 +375,7 @@ void Reconstruction::RightEigenmatrixDotVector(
     } else {
       Real iso_cs = pmy_block_->peos->GetIsoSoundSpeed();
       Real iso_cs2 = SQR(iso_cs);
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
       for (int i=il; i<=iu; ++i) {
         Real id = 1.0/w(IDN,i);
         Real sqrtd = std::sqrt(w(IDN,i));
@@ -456,7 +456,7 @@ void Reconstruction::RightEigenmatrixDotVector(
     // Adiabatic hydrodynamics -----------------------------------------------------------
     if (NON_BAROTROPIC_EOS) {
       Real gamma = pmy_block_->peos->GetGamma();
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
       for (int i=il; i<=iu; ++i) {
         Real asq = gamma*w(IPR,i)/w(IDN,i);
         Real a   = std::sqrt(asq);
@@ -480,7 +480,7 @@ void Reconstruction::RightEigenmatrixDotVector(
       // Isothermal hydrodynamics --------------------------------------------------------
     } else {
       Real iso_cs = pmy_block_->peos->GetIsoSoundSpeed();
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
       for (int i=il; i<=iu; ++i) {
         // Multiply row of R-eigenmatrix with vector using matrix elements from eq. A3
         // Components of vect() are addressed directly as they are input in permuted order

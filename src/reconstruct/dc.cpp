@@ -26,17 +26,17 @@ void Reconstruction::DonorCellX1(const int k, const int j, const int il, const i
                                  AthenaArray<Real> &wl, AthenaArray<Real> &wr) {
   // compute L/R states for each variable
   for (int n=0; n<NHYDRO; ++n) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=il; i<=iu; ++i) {
       wl(n,i+1) =  wr(n,i) = w(n,k,j,i);
     }
   }
   if (MAGNETIC_FIELDS_ENABLED) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=il; i<=iu; ++i) {
       wl(IBY,i+1) = wr(IBY,i) = bcc(IB2,k,j,i);
     }
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=il; i<=iu; ++i) {
       wl(IBZ,i+1) = wr(IBZ,i) = bcc(IB3,k,j,i);
     }
@@ -56,17 +56,17 @@ void Reconstruction::DonorCellX2(const int k, const int j, const int il, const i
                                  AthenaArray<Real> &wl, AthenaArray<Real> &wr) {
   // compute L/R states for each variable
   for (int n=0; n<NHYDRO; ++n) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=il; i<=iu; ++i) {
       wl(n,i) = wr(n,i) = w(n,k,j,i);
     }
   }
   if (MAGNETIC_FIELDS_ENABLED) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=il; i<=iu; ++i) {
       wl(IBY,i) = wr(IBY,i) = bcc(IB3,k,j,i);
     }
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=il; i<=iu; ++i) {
       wl(IBZ,i) = wr(IBZ,i) = bcc(IB1,k,j,i);
     }
@@ -85,17 +85,17 @@ void Reconstruction::DonorCellX3(const int k, const int j, const int il, const i
                                  AthenaArray<Real> &wl, AthenaArray<Real> &wr) {
   // compute L/R states for each variable
   for (int n=0; n<NHYDRO; ++n) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=il; i<=iu; ++i) {
       wl(n,i) = wr(n,i) = w(n,k,j,i);
     }
   }
   if (MAGNETIC_FIELDS_ENABLED) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=il; i<=iu; ++i) {
       wl(IBY,i) = wr(IBY,i) = bcc(IB1,k,j,i);
     }
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=il; i<=iu; ++i) {
       wl(IBZ,i) = wr(IBZ,i) = bcc(IB2,k,j,i);
     }

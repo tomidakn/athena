@@ -127,7 +127,7 @@ Cylindrical::Cylindrical(MeshBlock *pmb, ParameterInput *pin, bool flag)
 
     // Compute and store constant coefficients needed for face-areas, cell-volumes, etc.
     // This helps improve performance.
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=il-ng; i<=iu+ng; ++i) {
       Real rm = x1f(i  );
       Real rp = x1f(i+1);
@@ -142,7 +142,7 @@ Cylindrical::Cylindrical(MeshBlock *pmb, ParameterInput *pin, bool flag)
       // Rf_{i}/R_{i}/Rf_{i}^2
       phy_src1_i_(i) = 1.0/(x1v(i)*x1f(i));
     }
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
     for (int i=il-ng; i<=iu+(ng-1); ++i) {
       // Rf_{i+1}/R_{i}/Rf_{i+1}^2
       phy_src2_i_(i) = 1.0/(x1v(i)*x1f(i+1));
@@ -161,7 +161,7 @@ Cylindrical::Cylindrical(MeshBlock *pmb, ParameterInput *pin, bool flag)
 
 void Cylindrical::Edge2Length(const int k, const int j, const int il, const int iu,
                               AthenaArray<Real> &len) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     len(i) = x1f(i)*dx2f(j);
   }
@@ -181,7 +181,7 @@ Real Cylindrical::GetEdge2Length(const int k, const int j, const int i) {
 
 void Cylindrical::VolCenter2Length(const int k, const int j, const int il, const int iu,
                                    AthenaArray<Real> &len) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     // length2 = r d(theta)
     len(i) = x1v(i)*dx2v(j);
@@ -194,7 +194,7 @@ void Cylindrical::VolCenter2Length(const int k, const int j, const int il, const
 
 void Cylindrical::CenterWidth2(const int k, const int j, const int il, const int iu,
                                AthenaArray<Real> &dx2) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     dx2(i) = x1v(i)*dx2f(j);
   }
@@ -206,7 +206,7 @@ void Cylindrical::CenterWidth2(const int k, const int j, const int il, const int
 
 void Cylindrical::Face1Area(const int k, const int j, const int il, const int iu,
                             AthenaArray<Real> &area) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     // area1 = r dphi dz
     area(i) = x1f(i)*dx2f(j)*dx3f(k);
@@ -216,7 +216,7 @@ void Cylindrical::Face1Area(const int k, const int j, const int il, const int iu
 
 void Cylindrical::Face3Area(const int k, const int j, const int il, const int iu,
                             AthenaArray<Real> &area) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     // area3 = dr r dphi = d(r^2/2) dphi
     area(i) = coord_area3_i_(i)*dx2f(j);
@@ -244,7 +244,7 @@ Real Cylindrical::GetFace3Area(const int k, const int j, const int i) {
 
 void Cylindrical::VolCenterFace1Area(const int k, const int j, const int il, const int iu,
                                      AthenaArray<Real> &area) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     // area1 = r dphi dz
     area(i) = x1v(i)*dx2v(j)*dx3v(k);
@@ -254,7 +254,7 @@ void Cylindrical::VolCenterFace1Area(const int k, const int j, const int il, con
 
 void Cylindrical::VolCenterFace3Area(const int k, const int j, const int il, const int iu,
                                      AthenaArray<Real> &area) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     // area3 = dr r dtheta = d(r^2/2) dtheta
     area(i) = coord_area3vc_i_(i)*dx2v(j);
@@ -265,7 +265,7 @@ void Cylindrical::VolCenterFace3Area(const int k, const int j, const int il, con
 
 void Cylindrical::CellVolume(const int k, const int j, const int il, const int iu,
                              AthenaArray<Real> &vol) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     // volume = dr dz r dphi = d(r^2/2) dphi dz
     vol(i) = coord_vol_i_(i)*dx2f(j)*dx3f(k);
@@ -294,7 +294,9 @@ void Cylindrical::AddCoordTermsDivergence(
 
   for (int k=pmy_block->ks; k<=pmy_block->ke; ++k) {
     for (int j=pmy_block->js; j<=pmy_block->je; ++j) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
+#pragma fj loop loop_fission_target
+#pragma fj loop loop_fission_threshold 1
       for (int i=pmy_block->is; i<=pmy_block->ie; ++i) {
         // src_1 = <M_{phi phi}><1/r>
         // Skinner and Ostriker (2010) eq. 11a
@@ -338,25 +340,46 @@ void Cylindrical::AddCoordTermsDivergence_STS(
                              (hd.nu_iso > 0.0 || hd.nu_aniso > 0.0));
 
   if (do_hydro_diffusion) {
-    for (int k=pmy_block->ks; k<=pmy_block->ke; ++k) {
-      for (int j=pmy_block->js; j<=pmy_block->je; ++j) {
-#pragma omp simd
-        for (int i=pmy_block->is; i<=pmy_block->ie; ++i) {
-          // src_1 = <M_{phi phi}><1/r>
-          Real m_pp = 0.5*(hd.visflx[X2DIR](IM2,k,j+1,i) + hd.visflx[X2DIR](IM2,k,j,i));
-          u(IM1,k,j,i) += dt*coord_src1_i_(i)*m_pp;
+    if (stage == 1 && pmy_block->pmy_mesh->sts_integrator=="rkl2") {
+      for (int k=pmy_block->ks; k<=pmy_block->ke; ++k) {
+        for (int j=pmy_block->js; j<=pmy_block->je; ++j) {
+#pragma clang loop vectorize(assume_safety)
+#pragma fj loop loop_fission_target
+#pragma fj loop loop_fission_threshold 1
+          for (int i=pmy_block->is; i<=pmy_block->ie; ++i) {
+            // src_1 = <M_{phi phi}><1/r>
+            Real m_pp = 0.5*(hd.visflx[X2DIR](IM2,k,j+1,i) + hd.visflx[X2DIR](IM2,k,j,i));
+            u(IM1,k,j,i) += dt*coord_src1_i_(i)*m_pp;
 
-          // src_2 = -< M_{phi r} ><1/r>
-          Real& x_i   = x1f(i);
-          Real& x_ip1 = x1f(i+1);
-          u(IM2,k,j,i) -= dt*coord_src2_i_(i)*(x_i*flux[X1DIR](IM2,k,j,i)
-                                               + x_ip1*flux[X1DIR](IM2,k,j,i+1));
+            // src_2 = -< M_{phi r} ><1/r>
+            Real& x_i   = x1f(i);
+            Real& x_ip1 = x1f(i+1);
+            u(IM2,k,j,i) -= dt*coord_src2_i_(i)*(x_i*flux[X1DIR](IM2,k,j,i)
+                                                 + x_ip1*flux[X1DIR](IM2,k,j,i+1));
 
-          if (stage == 1 && pmy_block->pmy_mesh->sts_integrator=="rkl2") {
             flux_div(IM1,k,j,i) += 0.5*pmy_block->pmy_mesh->dt*coord_src1_i_(i)*m_pp;
             flux_div(IM2,k,j,i) -= 0.5*pmy_block->pmy_mesh->dt*coord_src2_i_(i)
                                    * (x_i*flux[X1DIR](IM2,k,j,i)
                                       + x_ip1*flux[X1DIR](IM2,k,j,i+1));
+          }
+        }
+      }
+    } else {
+      for (int k=pmy_block->ks; k<=pmy_block->ke; ++k) {
+        for (int j=pmy_block->js; j<=pmy_block->je; ++j) {
+#pragma clang loop vectorize(assume_safety)
+#pragma fj loop loop_fission_target
+#pragma fj loop loop_fission_threshold 1
+          for (int i=pmy_block->is; i<=pmy_block->ie; ++i) {
+            // src_1 = <M_{phi phi}><1/r>
+            Real m_pp = 0.5*(hd.visflx[X2DIR](IM2,k,j+1,i) + hd.visflx[X2DIR](IM2,k,j,i));
+            u(IM1,k,j,i) += dt*coord_src1_i_(i)*m_pp;
+
+            // src_2 = -< M_{phi r} ><1/r>
+            Real& x_i   = x1f(i);
+            Real& x_ip1 = x1f(i+1);
+            u(IM2,k,j,i) -= dt*coord_src2_i_(i)*(x_i*flux[X1DIR](IM2,k,j,i)
+                                                 + x_ip1*flux[X1DIR](IM2,k,j,i+1));
           }
         }
       }
