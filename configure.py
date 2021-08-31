@@ -580,7 +580,7 @@ if args['cxx'] == 'a64fx':
     definitions['COMPILER_CHOICE'] = 'a64fx'
     definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'FCCpx'
     makefile_options['PREPROCESSOR_FLAGS'] = ''
-    makefile_options['COMPILER_FLAGS'] = '-Nclang -std=c++11 -Ofast -ffj-preex -ffj-swp -flto -fopenmp-simd' #noqa
+    makefile_options['COMPILER_FLAGS'] = '-Nclang -std=c++11 -Ofast -ffj-preex -ffj-zfill -ffj-swp -flto -fopenmp-simd' #noqa
     makefile_options['LINKER_FLAGS'] = ''
     makefile_options['LIBRARY_FLAGS'] = ''
 
