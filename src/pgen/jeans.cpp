@@ -42,10 +42,6 @@
 #include <omp.h>
 #endif
 
-#if MAGNETIC_FIELDS_ENABLED
-#error "This problem generator does not support magnetic fields"
-#endif
-
 namespace {
 // with functions A1,2,3 which compute vector potentials
 Real ang_2, ang_3; // Rotation angles about the y and z' axis

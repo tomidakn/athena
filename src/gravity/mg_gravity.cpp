@@ -148,6 +148,7 @@ void MGGravity::Smooth(AthenaArray<Real> &u, const AthenaArray<Real> &src, int r
   Real isix = omega_/6.0;
   for (int k=kl; k<=ku; k++) {
     for (int j=jl; j<=ju; j++) {
+#pragma clang loop vectorize(assume_safety)
       for (int i=il+c; i<=iu; i+=2)
         u(0,k,j,i) -= ((6.0*u(0,k,j,i) - u(0,k+1,j,i) - u(0,k,j+1,i) - u(0,k,j,i+1)
                       - u(0,k-1,j,i) - u(0,k,j-1,i) - u(0,k,j,i-1))
@@ -157,24 +158,6 @@ void MGGravity::Smooth(AthenaArray<Real> &u, const AthenaArray<Real> &src, int r
     c ^= 1;
   }
 
-// Jacobi
-/*  const Real isix = 1.0/7.0;
-  static AthenaArray<Real> temp;
-  if (!temp.IsAllocated())
-    temp.NewAthenaArray(1,18,18,18);
-  for (int k=kl; k<=ku; k++) {
-    for (int j=jl; j<=ju; j++) {
-      for (int i=il; i<=iu; i++)
-        temp(0,k,j,i) = u(0,k,j,i) - (((6.0*u(0,k,j,i) - u(0,k+1,j,i) - u(0,k,j+1,i) - u(0,k,j,i+1)
-                      - u(0,k-1,j,i) - u(0,k,j-1,i) - u(0,k,j,i-1)) + src(0,k,j,i)*dx2)*isix);
-    }
-  }
-  for (int k=kl; k<=ku; k++) {
-    for (int j=jl; j<=ju; j++) {
-      for (int i=il; i<=iu; i++)
-      u(0,k,j,i) = temp(0,k,j,i);
-    }
-  }*/
   return;
 }
 
@@ -195,6 +178,7 @@ void MGGravity::CalculateDefect(AthenaArray<Real> &def, const AthenaArray<Real> 
   Real idx2 = 1.0/SQR(dx);
   for (int k=kl; k<=ku; k++) {
     for (int j=jl; j<=ju; j++) {
+#pragma clang loop vectorize(assume_safety)
       for (int i=il; i<=iu; i++)
         def(0,k,j,i) = (6.0*u(0,k,j,i) - u(0,k+1,j,i) - u(0,k,j+1,i) - u(0,k,j,i+1)
                        - u(0,k-1,j,i) - u(0,k,j-1,i) - u(0,k,j,i-1))*idx2
@@ -220,6 +204,7 @@ void MGGravity::CalculateFASRHS(AthenaArray<Real> &src, const AthenaArray<Real> 
   Real idx2 = 1.0/SQR(dx);
   for (int k=kl; k<=ku; k++) {
     for (int j=jl; j<=ju; j++) {
+#pragma clang loop vectorize(assume_safety)
       for (int i=il; i<=iu; i++)
         src(0,k,j,i) -= (6.0*u(0,k,j,i) - u(0,k+1,j,i) - u(0,k,j+1,i) - u(0,k,j,i+1)
                         - u(0,k-1,j,i) - u(0,k,j-1,i) - u(0,k,j,i-1))*idx2;
