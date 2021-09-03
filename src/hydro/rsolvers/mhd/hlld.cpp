@@ -50,7 +50,8 @@ void Hydro::RiemannSolver(const int k, const int j, const int il, const int iu,
   Real dt = pmy_block->pmy_mesh->dt;
 
 #pragma clang loop vectorize(assume_safety)
-#pragma loop loop_fission_target
+#pragma fj loop loop_fission_target
+#pragma fj loop loop_fission_threshold 1
   for (int i=il; i<=iu; ++i) {
 
     Real wldn=wl(IDN,i);
@@ -352,7 +353,7 @@ void Hydro::RiemannSolver(const int k, const int j, const int il, const int iu,
     wcta[i] = 0.5 + std::max(static_cast<Real>(-0.5), tmp_min);
   }
 
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
   for (int i=il; i<=iu; ++i) {
     flx(IDN,k,j,i) = fdn[i];
     flx(ivx,k,j,i) = fvx[i];

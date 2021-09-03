@@ -468,6 +468,7 @@ int MGBoundaryValues::LoadMultigridBoundaryBufferSameLevel(Real *buf,
     for (int n=0; n<nvar; ++n) {
       for (int k=sk, fk=fsk; k<=ek; ++k, fk+=2) {
         for (int j=sj, fj=fsj; j<=ej; ++j, fj+=2) {
+#pragma clang loop vectorize(assume_safety)
           for (int i=si, fi=fsi; i<=ei; ++i, fi+=2)
             buf[p++] = cbuf_(n, k, j, i)
                      = 0.125*(((u(n, fk,   fj,   fi)+u(n, fk,   fj,   fi+1))
@@ -481,6 +482,7 @@ int MGBoundaryValues::LoadMultigridBoundaryBufferSameLevel(Real *buf,
       for (int n=0; n<nvar; ++n) {
         for (int k=sk, fk=fsk; k<=ek; ++k, fk+=2) {
           for (int j=sj, fj=fsj; j<=ej; ++j, fj+=2) {
+#pragma clang loop vectorize(assume_safety)
             for (int i=si, fi=fsi; i<=ei; ++i, fi+=2)
               buf[p++] = cbufold_(n, k, j, i)
                        = 0.125*(((old(n, fk,   fj,   fi)+old(n, fk,   fj,   fi+1))
@@ -524,6 +526,7 @@ int MGBoundaryValues::LoadMultigridBoundaryBufferToCoarser(Real *buf,
   for (int n=0; n<nvar; ++n) {
     for (int k=sk, fk=fsk; k<=ek; ++k, fk+=2) {
       for (int j=sj, fj=fsj; j<=ej; ++j, fj+=2) {
+#pragma clang loop vectorize(assume_safety)
         for (int i=si, fi=fsi; i<=ei; ++i, fi+=2)
           buf[p++] = cbuf_(n, k, j, i)
                    = 0.125*(((u(n, fk,   fj,   fi)+u(n, fk,   fj,   fi+1))
@@ -537,6 +540,7 @@ int MGBoundaryValues::LoadMultigridBoundaryBufferToCoarser(Real *buf,
     for (int n=0; n<nvar; ++n) {
       for (int k=sk, fk=fsk; k<=ek; ++k, fk+=2) {
         for (int j=sj, fj=fsj; j<=ej; ++j, fj+=2) {
+#pragma clang loop vectorize(assume_safety)
           for (int i=si, fi=fsi; i<=ei; ++i, fi+=2)
             buf[p++] = cbufold_(n, k, j, i)
                      = 0.125*(((old(n, fk,   fj,   fi)+old(n, fk,   fj,   fi+1))

@@ -1052,6 +1052,7 @@ void MultigridDriver::ProlongateAndCorrectOctets() {
         for (int v = 0; v < nvar_; ++v) {
           for (int k = 0; k <= 2; ++k) {
             for (int j = 0; j <= 2; ++j) {
+#pragma clang loop vectorize(assume_safety)
               for (int i = 0; i <= 2; ++i) {
                 cbuf_(v,k,j,i) = u(v, rk+k, rj+j, ri+i) - uold(v, rk+k, rj+j, ri+i);
               }
@@ -1083,6 +1084,7 @@ void MultigridDriver::ProlongateAndCorrectOctets() {
         for (int v = 0; v < nvar_; ++v) {
           for (int k = 0; k <= 2; ++k) {
             for (int j = 0; j <= 2; ++j) {
+#pragma clang loop vectorize(assume_safety)
               for (int i = 0; i <= 2; ++i)
                 cbuf_(v,k,j,i) = uc(v, ck+k, cj+j, ci+i) - ucold(v, ck+k, cj+j, ci+i);
             }
