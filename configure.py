@@ -608,7 +608,7 @@ if args['debug']:
     if args['cxx'] == 'icpc-phi':
         makefile_options['COMPILER_FLAGS'] = '-O0 --std=c++11 -g -xMIC-AVX512'
     if args['cxx'] == 'a64fx':
-        makefile_options['COMPILER_FLAGS'] = '-Nclang -O0 -std=c++11 -Ofast'
+        makefile_options['COMPILER_FLAGS'] = '-Nclang -O0 -std=c++11 -g'
 else:
     definitions['DEBUG_OPTION'] = 'NOT_DEBUG'
 

@@ -24,6 +24,7 @@
 #include "../mesh/mesh.hpp"
 #include "../multigrid/multigrid.hpp"
 #include "../parameter_input.hpp"
+#include "../task_list/grav_task_list.hpp"
 #include "gravity.hpp"
 #include "mg_gravity.hpp"
 
@@ -38,27 +39,76 @@ class MeshBlock;
 //! \brief MGGravityDriver constructor
 
 MGGravityDriver::MGGravityDriver(Mesh *pm, ParameterInput *pin)
-    : MultigridDriver(pm, pm->MGGravityBoundaryFunction_, 1) {
+    : MultigridDriver(pm, pm->MGGravityBoundaryFunction_,
+                      pm->MGGravitySourceMaskFunction_, 1) {
   four_pi_G_ = pmy_mesh_->four_pi_G_;
-  eps_ = pmy_mesh_->grav_eps_;
-  if (four_pi_G_==0.0) {
+  eps_ = pin->GetOrAddReal("gravity", "threshold", -1.0);
+  niter_ = pin->GetOrAddInteger("gravity", "niteration", -1);
+  ffas_ = pin->GetOrAddBoolean("gravity", "fas", ffas_);
+  std::string m = pin->GetOrAddString("gravity", "mgmode", "none");
+  std::transform(m.begin(), m.end(), m.begin(), ::tolower);
+  if (m == "fmg") {
+    mode_ = 0;
+  } else if (m == "mgi") {
+    mode_ = 1; // Iterative
+  } else {
+    std::stringstream msg;
+    msg << "### FATAL ERROR in MGGravityDriver::MGGravityDriver" << std::endl
+        << "The \"mgmode\" parameter in the <gravity> block is invalid." << std::endl
+        << "FMG: Full Multigrid + Multigrid iteration (default)" << std::endl
+        << "MGI: Multigrid Iteration" << std::endl;
+    ATHENA_ERROR(msg);
+  }
+  if (eps_ < 0.0 && niter_ < 0) {
+    std::stringstream msg;
+    msg << "### FATAL ERROR in MGGravityDriver::MGGravityDriver" << std::endl
+        << "Either \"threshold\" or \"niteration\" parameter must be set "
+        << "in the <gravity> block." << std::endl
+        << "When both parameters are specified, \"niteration\" is ignored." << std::endl
+        << "Set \"threshold = 0.0\" for automatic convergence control." << std::endl;
+    ATHENA_ERROR(msg);
+  }
+  if (four_pi_G_ < 0.0) {
     std::stringstream msg;
     msg << "### FATAL ERROR in MGGravityDriver::MGGravityDriver" << std::endl
         << "Gravitational constant must be set in the Mesh::InitUserMeshData "
         << "using the SetGravitationalConstant or SetFourPiG function." << std::endl;
     ATHENA_ERROR(msg);
   }
-  if (mode_>=2 && eps_<0.0) {
+
+  mg_mesh_bcs_[inner_x1] =
+              GetMGBoundaryFlag(pin->GetOrAddString("gravity", "ix1_bc", "none"));
+  mg_mesh_bcs_[outer_x1] =
+              GetMGBoundaryFlag(pin->GetOrAddString("gravity", "ox1_bc", "none"));
+  mg_mesh_bcs_[inner_x2] =
+              GetMGBoundaryFlag(pin->GetOrAddString("gravity", "ix2_bc", "none"));
+  mg_mesh_bcs_[outer_x2] =
+              GetMGBoundaryFlag(pin->GetOrAddString("gravity", "ox2_bc", "none"));
+  mg_mesh_bcs_[inner_x3] =
+              GetMGBoundaryFlag(pin->GetOrAddString("gravity", "ix3_bc", "none"));
+  mg_mesh_bcs_[outer_x3] =
+              GetMGBoundaryFlag(pin->GetOrAddString("gravity", "ox3_bc", "none"));
+  CheckBoundaryFunctions();
+  if (mporder_ >= 0) {
+    mporder_ = pin->GetOrAddInteger("gravity", "mporder", 0);
+    if (mporder_ != 2 && mporder_ != 4) {
     std::stringstream msg;
     msg << "### FATAL ERROR in MGGravityDriver::MGGravityDriver" << std::endl
-        << "Convergence threshold must be set in the Mesh::InitUserMeshData "
-        << "using the SetGravitatyThreshold for the iterative mode." << std::endl
-        << "Set the threshold = 0.0 for automatic convergence control." << std::endl;
+          << "To use multipole expansion for boundary conditions, "
+          << "\"mporder\" must be specified in the <gravity> block." << std::endl
+          << "Currently we support only mporder = 2 (up to quadrapole) "
+          << "and 4 (hexadecapole)." << std::endl;
     ATHENA_ERROR(msg);
   }
+    AllocateMultipoleCoefficients();
+  }
+
+  mgtlist_ = new MultigridTaskList(this);
 
   // Allocate the root multigrid
   mgroot_ = new MGGravity(this, nullptr);
+
+  gtlist_ = new GravityBoundaryTaskList(pin, pm);
 }
 
 
@@ -67,7 +117,9 @@ MGGravityDriver::MGGravityDriver(Mesh *pm, ParameterInput *pin)
 //! \brief MGGravityDriver destructor
 
 MGGravityDriver::~MGGravityDriver() {
+  delete gtlist_;
   delete mgroot_;
+  delete mgtlist_;
 }
 
 
@@ -79,10 +131,7 @@ MGGravity::MGGravity(MultigridDriver *pmd, MeshBlock *pmb) : Multigrid(pmd, pmb,
   btype = BoundaryQuantity::mggrav;
   btypef = BoundaryQuantity::mggrav_f;
   defscale_ = rdx_*rdx_;
-  if (pmy_block_ != nullptr)
-    pmgbval = new MGGravityBoundaryValues(this, pmy_block_->pbval->block_bcs);
-  else
-    pmgbval = new MGGravityBoundaryValues(this, pmy_driver_->pmy_mesh_->mesh_bcs);
+  pmgbval = new MGGravityBoundaryValues(this, mg_block_bcs_);
 }
 
 
@@ -100,16 +149,17 @@ MGGravity::~MGGravity() {
 //! \brief load the data and solve
 
 void MGGravityDriver::Solve(int stage) {
+  four_pi_G_ = pmy_mesh_->four_pi_G_;
   // Construct the Multigrid array
   vmg_.clear();
-  for (int i=0; i<pmy_mesh_->nblocal; ++i)
+  for (int i = 0; i < pmy_mesh_->nblocal; ++i)
     vmg_.push_back(pmy_mesh_->my_blocks(i)->pmg);
 
   // load the source
   for (Multigrid* pmg : vmg_) {
     // assume all the data are located on the same node
     pmg->LoadSource(pmg->pmy_block_->phydro->u, IDN, NGHOST, four_pi_G_);
-    if (mode_ >= 2) // iterative mode - load initial guess
+    if (mode_ ==1) // iterative mode - load initial guess
       pmg->LoadFinestData(pmg->pmy_block_->pgrav->phi, 0, NGHOST);
   }
 
@@ -118,16 +168,26 @@ void MGGravityDriver::Solve(int stage) {
   if (fsubtract_average_)
     mean_rho = last_ave_/four_pi_G_;
 
-  if (mode_ <= 1)
+  if (mode_ == 0) {
     SolveFMGCycle();
+  } else {
+    if (eps_ >= 0.0)
+      SolveIterative();
   else
-    SolveIterative(eps_);
+      SolveIterativeFixedTimes();
+  }
 
   // Return the result
   for (Multigrid* pmg : vmg_) {
     Gravity *pgrav = pmg->pmy_block_->pgrav;
     pmg->RetrieveResult(pgrav->phi, 0, NGHOST);
+    if(pgrav->output_defect)
+      pmg->RetrieveDefect(pgrav->def, 0, NGHOST);
   }
+
+  if (vmg_[0]->pmy_block_->pgrav->fill_ghost)
+    gtlist_->DoTaskListOneStage(pmy_mesh_, stage);
+
   return;
 }
 
@@ -232,14 +292,8 @@ void MGGravityDriver::ProlongateOctetBoundariesFluxCons(AthenaArray<Real> &dst) 
       if (ox1 > 0) i = ngh + 1, fi = ngh + 1, fig = ngh + 2;
       else         i = ngh - 1, fi = ngh,     fig = ngh - 1;
       Real ccval = cbuf_(0, ck, cj, i);
-      Real gx2m = ccval - cbuf_(0, ck, cj-1, i);
-      Real gx2p = cbuf_(0, ck, cj+1, i) - ccval;
-      Real gx2c = 0.125*(SIGN(gx2m) + SIGN(gx2p))*std::min(std::abs(gx2m),
-                                                           std::abs(gx2p));
-      Real gx3m = ccval - cbuf_(0, ck-1, cj, i);
-      Real gx3p = cbuf_(0, ck+1, cj, i) - ccval;
-      Real gx3c = 0.125*(SIGN(gx3m) + SIGN(gx3p))*std::min(std::abs(gx3m),
-                                                           std::abs(gx3p));
+      Real gx2c = 0.125*(cbuf_(0, ck, cj+1, i) - cbuf_(0, ck, cj-1, i));
+      Real gx3c = 0.125*(cbuf_(0, ck+1, cj, i) - cbuf_(0, ck-1, cj, i));
       dst(0, l, l, fig) = ot*(2.0*(ccval - gx2c - gx3c) + u(0, l, l, fi));
       dst(0, l, r, fig) = ot*(2.0*(ccval + gx2c - gx3c) + u(0, l, r, fi));
       dst(0, r, l, fig) = ot*(2.0*(ccval - gx2c + gx3c) + u(0, r, l, fi));
@@ -254,14 +308,8 @@ void MGGravityDriver::ProlongateOctetBoundariesFluxCons(AthenaArray<Real> &dst) 
       if (ox2 > 0) j = ngh + 1, fj = ngh + 1, fjg = ngh + 2;
       else         j = ngh - 1, fj = ngh,     fjg = ngh - 1;
       Real ccval = cbuf_(0, ck, j, ci);
-      Real gx1m = ccval - cbuf_(0, ck, j, ci-1);
-      Real gx1p = cbuf_(0, ck, j, ci+1) - ccval;
-      Real gx1c = 0.125*(SIGN(gx1m) + SIGN(gx1p))*std::min(std::abs(gx1m),
-                                                           std::abs(gx1p));
-      Real gx3m = ccval - cbuf_(0, ck-1, j, ci);
-      Real gx3p = cbuf_(0, ck+1, j, ci) - ccval;
-      Real gx3c = 0.125*(SIGN(gx3m) + SIGN(gx3p))*std::min(std::abs(gx3m),
-                                                           std::abs(gx3p));
+      Real gx1c = 0.125*(cbuf_(0, ck, j, ci+1) - cbuf_(0, ck, j, ci-1));
+      Real gx3c = 0.125*(cbuf_(0, ck+1, j, ci) - cbuf_(0, ck-1, j, ci));
       dst(0, l, fjg, l) = ot*(2.0*(ccval - gx1c - gx3c) + u(0, l, fj, l));
       dst(0, l, fjg, r) = ot*(2.0*(ccval + gx1c - gx3c) + u(0, l, fj, r));
       dst(0, r, fjg, l) = ot*(2.0*(ccval - gx1c + gx3c) + u(0, r, fj, l));
@@ -276,14 +324,8 @@ void MGGravityDriver::ProlongateOctetBoundariesFluxCons(AthenaArray<Real> &dst) 
       if (ox3 > 0) k = ngh + 1, fk = ngh + 1, fkg = ngh + 2;
       else         k = ngh - 1, fk = ngh,     fkg = ngh - 1;
       Real ccval = cbuf_(0, k, cj, ci);
-      Real gx1m = ccval - cbuf_(0, k, cj, ci-1);
-      Real gx1p = cbuf_(0, k, cj, ci+1) - ccval;
-      Real gx1c = 0.125*(SIGN(gx1m) + SIGN(gx1p))*std::min(std::abs(gx1m),
-                                                           std::abs(gx1p));
-      Real gx2m = ccval - cbuf_(0, k, cj-1, ci);
-      Real gx2p = cbuf_(0, k, cj+1, ci) - ccval;
-      Real gx2c = 0.125*(SIGN(gx2m) + SIGN(gx2p))*std::min(std::abs(gx2m),
-                                                           std::abs(gx2p));
+      Real gx1c = 0.125*(cbuf_(0, k, cj, ci+1) - cbuf_(0, k, cj, ci-1));
+      Real gx2c = 0.125*(cbuf_(0, k, cj+1, ci) - cbuf_(0, k, cj-1, ci));
       dst(0, fkg, l, l) = ot*(2.0*(ccval - gx1c - gx2c) + u(0, fk, l, l));
       dst(0, fkg, l, r) = ot*(2.0*(ccval + gx1c - gx2c) + u(0, fk, l, r));
       dst(0, fkg, r, l) = ot*(2.0*(ccval - gx1c + gx2c) + u(0, fk, r, l));
@@ -293,3 +335,4 @@ void MGGravityDriver::ProlongateOctetBoundariesFluxCons(AthenaArray<Real> &dst) 
 
   return;
 }
+

@@ -50,7 +50,10 @@ class MGBoundaryValues : public BoundaryBase {
   bool ReceiveMultigridBoundaryBuffers(BoundaryQuantity type, bool folddata);
   void ProlongateMultigridBoundaries(bool folddata);
   void ProlongateMultigridBoundariesFluxCons();
-  void CopyNeighborInfoFromMeshBlock();
+
+  virtual void DispatchBoundaryFunction(BoundaryFace face, AthenaArray<Real> &dst,
+       Real time, int nvar, int is, int ie, int js, int je, int ks, int ke, int ngh,
+       const MGCoordinates &coord);
 
  protected:
   Multigrid *pmy_mg_;
