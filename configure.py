@@ -824,6 +824,8 @@ with open(makefile_output, 'w') as current_file:
 self_grav_string = 'OFF'
 if args['grav'] == 'fft':
     self_grav_string = 'FFT'
+elif args['grav'] == 'mg':
+    self_grav_string = 'MG'
 
 print('Your Athena++ distribution has now been configured with the following options:')
 print('  Problem generator:          ' + args['prob'])
