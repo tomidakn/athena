@@ -825,7 +825,7 @@ self_grav_string = 'OFF'
 if args['grav'] == 'fft':
     self_grav_string = 'FFT'
 elif args['grav'] == 'mg':
-    self_grav_string = 'MG'
+    self_grav_string = 'Multigrid'
 
 print('Your Athena++ distribution has now been configured with the following options:')
 print('  Problem generator:          ' + args['prob'])
