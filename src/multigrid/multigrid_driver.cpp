@@ -83,6 +83,11 @@ MultigridDriver::MultigridDriver(Mesh *pm, MGBoundaryFunc *MGBoundary,
 #ifdef MPI_PARALLEL
   MPI_Comm_dup(MPI_COMM_WORLD, &MPI_COMM_MULTIGRID);
   mg_phys_id_ = pmy_mesh_->ReserveTagPhysIDs(1);
+  MPI_Comm_split(MPI_COMM_MULTIGRID, Globals::my_rank/nppn_, 0, &MPI_COMM_MG_INNODE);
+  if (Globals::my_rank%nppn_ == 0)
+    MPI_Comm_split(MPI_COMM_MULTIGRID, 0, 0, &MPI_COMM_MG_HPROCS);
+  else
+    MPI_Comm_split(MPI_COMM_MULTIGRID, MPI_UNDEFINED, 0, &MPI_COMM_MG_HPROCS);
 #endif
 
   if (maxreflevel_ > 0) { // SMR / AMR
@@ -116,6 +121,8 @@ MultigridDriver::~MultigridDriver() {
   if (mporder_ > 0)
     delete [] mpcoeff_;
 #ifdef MPI_PARALLEL
+  MPI_Comm_free(&MPI_COMM_MG_INNODE);
+  MPI_Comm_free(&MPI_COMM_MG_HPROCS);
   MPI_Comm_free(&MPI_COMM_MULTIGRID);
 #endif
 }
@@ -299,12 +306,30 @@ void MultigridDriver::SubtractAverage(MGVariable type) {
       rootbuf_[pmg->pmy_block_->gid*nvar_+v] = pmg->CalculateTotal(type, v);
   }
 #ifdef MPI_PARALLEL
-  if (nb_rank_ > 0)  // every rank has the same number of MeshBlocks
-    MPI_Allgather(MPI_IN_PLACE, nb_rank_*nvar_, MPI_ATHENA_REAL,
-                  rootbuf_, nb_rank_*nvar_, MPI_ATHENA_REAL, MPI_COMM_MULTIGRID);
-  else 
+  if (nb_rank_ > 0) {  // every rank has the same number of MeshBlocks
+    if (nranks_ <= nppn_) {
+      MPI_Allgather(MPI_IN_PLACE, nb_rank_*nvar_, MPI_ATHENA_REAL,
+                    rootbuf_, nb_rank_*nvar_, MPI_ATHENA_REAL, MPI_COMM_MULTIGRID);
+    } else {
+      Real *ptr = &(rootbuf_[nb_rank_*Globals::my_rank*nvar_]);
+      // 1. Gather the data within each node
+      if (Globals::my_rank % nppn_ == 0)
+        MPI_Gather(MPI_IN_PLACE, nb_rank_*nvar_, MPI_ATHENA_REAL, ptr,
+                   nb_rank_*nvar_, MPI_ATHENA_REAL, 0, MPI_COMM_MG_INNODE);
+      else
+        MPI_Gather(ptr, nb_rank_*nvar_, MPI_ATHENA_REAL, nullptr,
+                   0, MPI_ATHENA_REAL, 0, MPI_COMM_MG_INNODE);
+      // 2. Allgather the data among the head processes
+      if (Globals::my_rank % nppn_ == 0)
+        MPI_Allgather(MPI_IN_PLACE, nb_rank_*nvar_*nppn_, MPI_ATHENA_REAL,
+            rootbuf_, nb_rank_*nvar_*nppn_, MPI_ATHENA_REAL, MPI_COMM_MG_HPROCS);
+      // 3. Broadcast the data within each node
+      MPI_Bcast(rootbuf_, nbtotal_*nvar_, MPI_ATHENA_REAL, 0, MPI_COMM_MG_INNODE);
+    }
+  } else {
     MPI_Allgatherv(MPI_IN_PLACE, nblist_[Globals::my_rank]*nvar_, MPI_ATHENA_REAL,
                    rootbuf_, nvlisti_, nvslisti_, MPI_ATHENA_REAL, MPI_COMM_MULTIGRID);
+  }
 #endif
   Real vol = (pmy_mesh_->mesh_size.x1max - pmy_mesh_->mesh_size.x1min)
            * (pmy_mesh_->mesh_size.x2max - pmy_mesh_->mesh_size.x2min)
@@ -463,8 +488,25 @@ void MultigridDriver::TransferFromBlocksToRoot(bool initflag) {
 
 #ifdef MPI_PARALLEL
   if (nb_rank_ > 0) { // every rank has the same number of MeshBlocks
-    MPI_Allgather(MPI_IN_PLACE, nb_rank_*nv, MPI_ATHENA_REAL,
-                  rootbuf_, nb_rank_*nv, MPI_ATHENA_REAL, MPI_COMM_MULTIGRID);
+    if (nranks_ <= nppn_) {
+      MPI_Allgather(MPI_IN_PLACE, nb_rank_*nv, MPI_ATHENA_REAL,
+                    rootbuf_, nb_rank_*nv, MPI_ATHENA_REAL, MPI_COMM_MULTIGRID);
+    } else {
+      // 1. Gather the data within each node
+      Real *ptr = &(rootbuf_[nb_rank_*Globals::my_rank*nv]);
+      if (Globals::my_rank % nppn_ == 0)
+        MPI_Gather(MPI_IN_PLACE, nb_rank_*nv, MPI_ATHENA_REAL, ptr,
+                   nb_rank_*nv, MPI_ATHENA_REAL, 0, MPI_COMM_MG_INNODE);
+      else
+        MPI_Gather(ptr, nb_rank_*nv, MPI_ATHENA_REAL, nullptr,
+                   0, MPI_ATHENA_REAL, 0, MPI_COMM_MG_INNODE);
+      // 2. Allgather the data among the head processes
+      if (Globals::my_rank % nppn_ == 0)
+        MPI_Allgather(MPI_IN_PLACE, nb_rank_*nv*nppn_, MPI_ATHENA_REAL,
+            rootbuf_, nb_rank_*nv*nppn_, MPI_ATHENA_REAL, MPI_COMM_MG_HPROCS);
+      // 3. Broadcast the data within each node
+      MPI_Bcast(rootbuf_, nbtotal_*nv, MPI_ATHENA_REAL, 0, MPI_COMM_MG_INNODE);
+    }
   } else {
     if (!initflag)
       MPI_Allgatherv(MPI_IN_PLACE, nblist_[Globals::my_rank]*nv, MPI_ATHENA_REAL,

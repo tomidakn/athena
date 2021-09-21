@@ -253,8 +253,9 @@ class MultigridDriver {
   Real *rootbuf_;
   int nb_rank_;
 #ifdef MPI_PARALLEL
-  MPI_Comm MPI_COMM_MULTIGRID;
+  MPI_Comm MPI_COMM_MULTIGRID, MPI_COMM_MG_INNODE, MPI_COMM_MG_HPROCS;
   int mg_phys_id_;
+  const int nppn_ = 48;
 #endif
 };
 
