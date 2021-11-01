@@ -181,6 +181,7 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
   // Create user mesh data
   InitUserMeshBlockData(pin);
 
+  dt_cool = 1e-5;
   return;
 }
 
@@ -296,6 +297,8 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
   porb = new OrbitalAdvection(this, pin);
 
   InitUserMeshBlockData(pin);
+
+  dt_cool = 1e-5;
 
   std::size_t os = 0;
   // NEW_OUTPUT_TYPES:

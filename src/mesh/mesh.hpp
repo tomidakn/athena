@@ -98,6 +98,9 @@ class MeshBlock {
   AthenaArray<Real> user_out_var;
   std::string *user_out_var_names_;
 
+  // the minimum cooling time
+  Real dt_cool; 
+
   // user MeshBlock data that can be stored in restart files
   AthenaArray<Real> *ruser_meshblock_data;
   AthenaArray<int> *iuser_meshblock_data;
