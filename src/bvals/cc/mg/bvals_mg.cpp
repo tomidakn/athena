@@ -578,14 +578,14 @@ int MGBoundaryValues::LoadMultigridBoundaryBufferSameLevel(Real *buf,
     ej = (nb.ni.ox2 < 0) ? (cs + cn) : ce;
     sk = (nb.ni.ox3 > 0) ? (ce - cn) : cs;
     ek = (nb.ni.ox3 < 0) ? (cs + cn) : ce;
-    int fsi = (si - ngh)*2 + ngh;
-    int fsj = (sj - ngh)*2 + ngh;
-    int fsk = (sk - ngh)*2 + ngh;
     for (int n=0; n<nvar; ++n) {
-      for (int k=sk, fk=fsk; k<=ek; ++k, fk+=2) {
-        for (int j=sj, fj=fsj; j<=ej; ++j, fj+=2) {
+      for (int k=sk; k<=ek; ++k) {
+        int fk = (k - ngh) * 2 + ngh;
+        for (int j=sj; j<=ej; ++j) {
+          int fj = (j - ngh) * 2 + ngh;
 #pragma clang loop vectorize(assume_safety)
-          for (int i=si, fi=fsi; i<=ei; ++i, fi+=2)
+          for (int i=si; i<=ei; ++i) {
+            int fi = (i - ngh) * 2 + ngh;
             buf[p++] = cbuf_(n, k, j, i)
                      = 0.125*(((u(n, fk,   fj,   fi)+u(n, fk,   fj,   fi+1))
                             +  (u(n, fk,   fj+1, fi)+u(n, fk,   fj+1, fi+1)))
@@ -594,12 +594,16 @@ int MGBoundaryValues::LoadMultigridBoundaryBufferSameLevel(Real *buf,
         }
       }
     }
+    }
     if (folddata) {
       for (int n=0; n<nvar; ++n) {
-        for (int k=sk, fk=fsk; k<=ek; ++k, fk+=2) {
-          for (int j=sj, fj=fsj; j<=ej; ++j, fj+=2) {
+        for (int k=sk; k<=ek; ++k) {
+          int fk = (k - ngh) * 2 + ngh;
+          for (int j=sj; j<=ej; ++j) {
+            int fj = (j - ngh) * 2 + ngh;
 #pragma clang loop vectorize(assume_safety)
-            for (int i=si, fi=fsi; i<=ei; ++i, fi+=2)
+            for (int i=si; i<=ei; ++i) {
+              int fi = (i - ngh) * 2 + ngh;
               buf[p++] = cbufold_(n, k, j, i)
                        = 0.125*(((old(n, fk,   fj,   fi)+old(n, fk,   fj,   fi+1))
                               +  (old(n, fk,   fj+1, fi)+old(n, fk,   fj+1, fi+1)))
@@ -609,6 +613,7 @@ int MGBoundaryValues::LoadMultigridBoundaryBufferSameLevel(Real *buf,
         }
       }
     }
+  }
   }
 
   return p;
@@ -636,14 +641,14 @@ int MGBoundaryValues::LoadMultigridBoundaryBufferToCoarser(Real *buf,
   int ek = (nb.ni.ox3 < 0) ? (cs + cn) : ce;
 
   // restrict and store in the coarse buffer
-  int fsi = (si - ngh)*2 + ngh;
-  int fsj = (sj - ngh)*2 + ngh;
-  int fsk = (sk - ngh)*2 + ngh;
   for (int n=0; n<nvar; ++n) {
-    for (int k=sk, fk=fsk; k<=ek; ++k, fk+=2) {
-      for (int j=sj, fj=fsj; j<=ej; ++j, fj+=2) {
+    for (int k=sk; k<=ek; ++k) {
+      int fk = (k - ngh) * 2 + ngh;
+      for (int j=sj; j<=ej; ++j) {
+        int fj = (j - ngh) * 2 + ngh;
 #pragma clang loop vectorize(assume_safety)
-        for (int i=si, fi=fsi; i<=ei; ++i, fi+=2)
+        for (int i=si; i<=ei; ++i) {
+          int fi = (i - ngh) * 2 + ngh;
           buf[p++] = cbuf_(n, k, j, i)
                    = 0.125*(((u(n, fk,   fj,   fi)+u(n, fk,   fj,   fi+1))
                           +  (u(n, fk,   fj+1, fi)+u(n, fk,   fj+1, fi+1)))
@@ -652,12 +657,16 @@ int MGBoundaryValues::LoadMultigridBoundaryBufferToCoarser(Real *buf,
       }
     }
   }
+  }
   if (folddata) {
     for (int n=0; n<nvar; ++n) {
-      for (int k=sk, fk=fsk; k<=ek; ++k, fk+=2) {
-        for (int j=sj, fj=fsj; j<=ej; ++j, fj+=2) {
+      for (int k=sk; k<=ek; ++k) {
+        int fk = (k - ngh) * 2 + ngh;
+        for (int j=sj; j<=ej; ++j) {
+          int fj = (j - ngh) * 2 + ngh;
 #pragma clang loop vectorize(assume_safety)
-          for (int i=si, fi=fsi; i<=ei; ++i, fi+=2)
+          for (int i=si; i<=ei; ++i) {
+            int fi = (i - ngh) * 2 + ngh;
             buf[p++] = cbufold_(n, k, j, i)
                      = 0.125*(((old(n, fk,   fj,   fi)+old(n, fk,   fj,   fi+1))
                             +  (old(n, fk,   fj+1, fi)+old(n, fk,   fj+1, fi+1)))
@@ -666,6 +675,7 @@ int MGBoundaryValues::LoadMultigridBoundaryBufferToCoarser(Real *buf,
         }
       }
     }
+  }
   }
 
   return p;
@@ -1085,14 +1095,14 @@ void MGBoundaryValues::ProlongateMultigridBoundaries(bool folddata) {
     }
 
     // Prolongation using tri-linear interpolation
-    int fsi = (si - ngh)*2 + ngh;
-    int fsj = (sj - ngh)*2 + ngh;
-    int fsk = (sk - ngh)*2 + ngh;
     for (int v=0; v<nvar; ++v) {
-      for (int k=sk, fk=fsk; k<=ek; ++k, fk+=2) {
-        for (int j=sj, fj=fsj; j<=ej; ++j, fj+=2) {
+      for (int k=sk; k<=ek; ++k) {
+        int fk = (fk - ngh) * 2 + ngh;
+        for (int j=sj; j<=ej; ++j) {
+          int fj = (fj - ngh) * 2 + ngh;
 #pragma clang loop vectorize(assume_safety)
-          for (int i=si, fi=fsi; i<=ei; ++i, fi+=2) {
+          for (int i=si; i<=ei; ++i) {
+            int fi = (fi - ngh) * 2 + ngh;
             if (fk >= 0 && fj >= 0 && fi >= 0)
               dst(v, fk,   fj,   fi  ) =
                 0.015625*(27.0*cbuf_(v,k,j,i)+cbuf_(v,k-1,j-1,i-1)
@@ -1139,10 +1149,13 @@ void MGBoundaryValues::ProlongateMultigridBoundaries(bool folddata) {
     }
     if (folddata) {
       for (int v=0; v<nvar; ++v) {
-        for (int k=sk, fk=fsk; k<=ek; ++k, fk+=2) {
-          for (int j=sj, fj=fsj; j<=ej; ++j, fj+=2) {
+        for (int k=sk; k<=ek; ++k) {
+          int fk = (fk - ngh) * 2 + ngh;
+          for (int j=sj; j<=ej; ++j) {
+            int fj = (fj - ngh) * 2 + ngh;
 #pragma clang loop vectorize(assume_safety)
-            for (int i=si, fi=fsi; i<=ei; ++i, fi+=2) {
+            for (int i=si; i<=ei; ++i) {
+              int fi = (fi - ngh) * 2 + ngh;
               if (fk >= 0 && fj >= 0 && fi >= 0)
                 old(v, fk,   fj,   fi  ) =
                 0.015625*(27.0*cbufold_(v,k,j,i)+cbufold_(v,k-1,j-1,i-1)
@@ -1402,13 +1415,13 @@ void MGGravityBoundaryValues::SetMultigridBoundaryFromFinerFluxCons(const Real *
 
   // correct the ghost values using the mass conservation formula
   for (int v=0; v<nvar; ++v) {
-  for (int k=sk; k<=ek; ++k) {
-    for (int j=sj; j<=ej; ++j) {
-      for (int i=si; i<=ei; ++i) {
-          dst(v,k,j,i) = ot * (4.0*buf[p++] - dst(v,k+ok,j+oj,i+oi));
+    for (int k=sk; k<=ek; ++k) {
+      for (int j=sj; j<=ej; ++j) {
+        for (int i=si; i<=ei; ++i) {
+            dst(v,k,j,i) = ot * (4.0*buf[p++] - dst(v,k+ok,j+oj,i+oi));
+        }
       }
     }
-  }
   }
   return;
 }
@@ -1452,8 +1465,10 @@ void MGBoundaryValues::ProlongateMultigridBoundariesFluxCons() {
         DispatchBoundaryFunction(BoundaryFace::outer_x3, cbuf_, time, nvar,
                                  i, i, cs, ce, cs, ce, ngh, coord);
       for (int v=0; v<nvar; ++v) {
-        for(int k=cs, fk=fs; k<=ce; ++k, fk+=2) {
-          for(int j=cs, fj=fs; j<=ce; ++j, fj+=2) {
+        for(int k=cs; k<=ce; ++k) {
+          int fk = (k - cs) * 2 + fs;
+          for(int j=cs; j<=ce; ++j) {
+            int fj = (j - cs) * 2 + fs;
             Real ccval = cbuf_(v, k, j, i);
             Real gx2c = 0.125*(cbuf_(v, k, j+1, i) -  cbuf_(v, k, j-1, i));
             Real gx3c = 0.125*(cbuf_(v, k+1, j, i) -  cbuf_(v, k-1, j, i));
@@ -1486,9 +1501,10 @@ void MGBoundaryValues::ProlongateMultigridBoundariesFluxCons() {
         DispatchBoundaryFunction(BoundaryFace::outer_x3, cbuf_, time, nvar,
                                  cs, ce, j, j, cs, ce, ngh, coord);
       for (int v=0; v<nvar; ++v) {
-        for(int k=cs, fk=fs; k<=ce; ++k, fk+=2) {
-#pragma clang loop vectorize(assume_safety)
-          for(int i=cs, fi=fs; i<=ce; ++i, fi+=2) {
+        for(int k=cs; k<=ce; ++k) {
+          int fk = (k - cs) * 2 + fs;
+          for(int i=cs; i<=ce; ++i) {
+            int fi = (i - cs) * 2 + fs;
             Real ccval = cbuf_(v, k, j, i);
             Real gx1c = 0.125*(cbuf_(v, k, j, i+1) -  cbuf_(v, k, j, i-1));
             Real gx3c = 0.125*(cbuf_(v, k+1, j, i) -  cbuf_(v, k-1, j, i));
@@ -1521,9 +1537,10 @@ void MGBoundaryValues::ProlongateMultigridBoundariesFluxCons() {
         DispatchBoundaryFunction(BoundaryFace::outer_x2, cbuf_, time, nvar,
                                  cs, ce, cs, ce, k, k, ngh, coord);
       for (int v=0; v<nvar; ++v) {
-        for(int j=cs, fj=fs; j<=ce; ++j, fj+=2) {
-#pragma clang loop vectorize(assume_safety)
-          for(int i=cs, fi=fs; i<=ce; ++i, fi+=2) {
+        for(int j=cs; j<=ce; ++j) {
+          int fj = (j - cs) * 2 + fs;
+          for(int i=cs; i<=ce; ++i) {
+            int fi = (i - cs) * 2 + fs;
             Real ccval = cbuf_(v, k, j, i);
             Real gx1c = 0.125*(cbuf_(v, k, j, i+1) -  cbuf_(v, k, j, i-1));
             Real gx2c = 0.125*(cbuf_(v, k, j+1, i) -  cbuf_(v, k, j-1, i));
