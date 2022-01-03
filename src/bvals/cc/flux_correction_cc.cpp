@@ -37,6 +37,10 @@
 #include <mpi.h>
 #endif
 
+#ifdef UTOFU_PARALLEL
+#include <utofu.h>
+#endif
+
 //----------------------------------------------------------------------------------------
 //! \fn int CellCenteredBoundaryVariable::LoadFluxBoundaryBufferSameLevel(Real *buf,
 //!                                                  const NeighborBlock& nb)
@@ -170,7 +174,14 @@ int CellCenteredBoundaryVariable::LoadFluxBoundaryBufferToCoarser(Real *buf,
 
 void CellCenteredBoundaryVariable::SendFluxCorrection() {
   MeshBlock *pmb=pmy_block_;
-  for (int n=0; n<pbval_->nneighbor; n++) {
+#ifdef MPI_PARALLEL
+#ifdef UTOFU_PARALLEL
+  int rc;
+  void *cbdata;
+  bd_var_flcor_.sentcount = 0;
+#endif
+#endif
+  for (int n = 0; n < pbval_->nneighbor; n++) {
     NeighborBlock& nb = pbval_->neighbor[n];
     if (nb.ni.type != NeighborConnect::face) break;
     if (bd_var_flcor_.sflag[nb.bufid] == BoundaryStatus::completed) continue;
@@ -183,12 +194,30 @@ void CellCenteredBoundaryVariable::SendFluxCorrection() {
     // else { // to finer
     // }
 
-    if (p>0) {
-      if (nb.snb.rank == Globals::my_rank) // on the same node
+    if (p > 0) {
+      if (nb.snb.rank == Globals::my_rank) { // on the same node
         CopyFluxCorrectionBufferSameProcess(nb, p);
+      }
 #ifdef MPI_PARALLEL
-      else
+      else {
+#ifdef UTOFU_PARALLEL
+        do {
+          rc  = utofu_post_toq(bd_var_flcor_.vcq_hdl, bd_var_flcor_.toqd[nb.bufid],
+                               bd_var_flcor_.toqdsize[nb.bufid], NULL);
+          if (rc != UTOFU_SUCCESS) {
+            rc = utofu_poll_tcq(bd_var_flcor_.vcq_hdl, 0, &cbdata);
+            if (rc == UTOFU_SUCCESS) {
+              bd_var_flcor_.sentcount--;
+              rc  = utofu_post_toq(bd_var_flcor_.vcq_hdl, bd_var_flcor_.toqd[nb.bufid],
+                                   bd_var_flcor_.toqdsize[nb.bufid], NULL);
+            }
+          }
+        } while (rc != UTOFU_SUCCESS);
+        bd_var_flcor_.sentcount++;
+#else
         MPI_Start(&(bd_var_flcor_.req_send[nb.bufid]));
+#endif
+      }
 #endif
     } else {
       if (nb.snb.rank == Globals::my_rank) // on the same node
@@ -196,6 +225,15 @@ void CellCenteredBoundaryVariable::SendFluxCorrection() {
     }
     bd_var_flcor_.sflag[nb.bufid] = BoundaryStatus::completed;
   }
+#ifdef MPI_PARALLEL
+#ifdef UTOFU_PARALLEL
+  do {
+    rc = utofu_poll_tcq(bd_var_flcor_.vcq_hdl, 0, &cbdata);
+    if (rc == UTOFU_SUCCESS)
+      bd_var_flcor_.sentcount--;
+  } while (rc != UTOFU_ERR_NOT_FOUND);
+#endif
+#endif
   return;
 }
 
@@ -304,13 +342,19 @@ bool CellCenteredBoundaryVariable::ReceiveFluxCorrection() {
       }
 #ifdef MPI_PARALLEL
       else { // NOLINT
-        int test;
+        int test = false;
+#ifdef UTOFU_PARALLEL
+        volatile Real *p = &bd_var_flcor_.recv[nb.bufid][bd_var_flcor_.rsize[nb.bufid]-1];
+        if (*p != not_arrived_)
+          test = true;
+#else
         // probe MPI communications.  This is a bit of black magic that seems to promote
         // communications to top of stack and gets them to complete more quickly
         if (MPI_IPROBE_ENABLED)
           MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &test,
                      MPI_STATUS_IGNORE);
         MPI_Test(&(bd_var_flcor_.req_recv[nb.bufid]), &test, MPI_STATUS_IGNORE);
+#endif
         if (!static_cast<bool>(test)) {
           flag = false;
           continue;
@@ -329,6 +373,8 @@ bool CellCenteredBoundaryVariable::ReceiveFluxCorrection() {
       //   nothing to do
 
       bd_var_flcor_.flag[nb.bufid] = BoundaryStatus::completed;
+      if (nb.snb.rank != Globals::my_rank)
+        bd_var_flcor_.recv[nb.bufid][bd_var_flcor_.rsize[nb.bufid]-1] = not_arrived_;
     }
   }
 

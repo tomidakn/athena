@@ -27,6 +27,12 @@
 #include <mpi.h>
 #endif
 
+#ifdef UTOFU_PARALLEL
+#include <utofu.h>
+#endif
+
+#include <unistd.h>
+
 //! constructor
 
 BoundaryVariable::BoundaryVariable(MeshBlock *pmb, bool fflux) : 
@@ -42,6 +48,22 @@ void BoundaryVariable::InitBoundaryData(BoundaryData<> &bd, BoundaryQuantity typ
   NeighborIndexes *ni = pbval_->ni;
   int cng = pmb->cnghost;
   int size = 0;
+#ifdef MPI_PARALLEL
+#ifdef UTOFU_PARALLEL
+  unsigned long int uflag = 0;
+  if (pmb->pmy_mesh->GetNumMeshThreads() > 1)
+    uflag = UTOFU_VCQ_FLAG_THREAD_SAFE;
+  utofu_tni_id_t tni_id = Utofu::tni_ids[pmb->gid%Utofu::num_tnis];
+  utofu_query_onesided_caps(tni_id, &bd.onesided_caps);
+  if (utofu_create_vcq(tni_id, uflag, &bd.vcq_hdl) != UTOFU_SUCCESS) {
+    std::stringstream msg;
+    msg << "### FATAL ERROR in InitBoundaryData" << std::endl
+        << "Cannot create utofu VCQ ." << std::endl;
+    ATHENA_ERROR(msg);
+  }
+  utofu_query_vcq_id(bd.vcq_hdl, &bd.vcq_id);
+#endif
+#endif
 
   bd.nbmax = pbval_->maxneighbor_;
   // KGF: what is happening in the next two conditionals??
@@ -76,6 +98,13 @@ void BoundaryVariable::InitBoundaryData(BoundaryData<> &bd, BoundaryQuantity typ
     }
     bd.send[n] = new Real[size];
     bd.recv[n] = new Real[size];
+#ifdef MPI_PARALLEL
+#ifdef UTOFU_PARALLEL
+    utofu_reg_mem(bd.vcq_hdl, bd.send[n], sizeof(Real)*size, 0, &(bd.lsa[n]));
+    utofu_reg_mem(bd.vcq_hdl, bd.recv[n], sizeof(Real)*size, 0, &(bd.lra[n]));
+    bd.toqd[n] = new char[bd.onesided_caps->max_toq_desc_size];
+#endif
+#endif
   }
 }
 
@@ -86,15 +115,30 @@ void BoundaryVariable::InitBoundaryData(BoundaryData<> &bd, BoundaryQuantity typ
 
 void BoundaryVariable::DestroyBoundaryData(BoundaryData<> &bd) {
   for (int n=0; n<bd.nbmax; n++) {
+#ifdef MPI_PARALLEL
+#ifdef UTOFU_PARALLEL
+    utofu_dereg_mem(bd.vcq_hdl, bd.lsa[n], 0);
+    utofu_dereg_mem(bd.vcq_hdl, bd.lra[n], 0);
+    delete [] bd.toqd[n];
+#endif
+#endif
     delete [] bd.send[n];
     delete [] bd.recv[n];
 #ifdef MPI_PARALLEL
-    if (bd.req_send[n] != MPI_REQUEST_NULL)
-      MPI_Request_free(&bd.req_send[n]);
-    if (bd.req_recv[n] != MPI_REQUEST_NULL)
-      MPI_Request_free(&bd.req_recv[n]);
+#pragma omp critical
+    {
+      if (bd.req_send[n] != MPI_REQUEST_NULL)
+        MPI_Request_free(&bd.req_send[n]);
+      if (bd.req_recv[n] != MPI_REQUEST_NULL)
+        MPI_Request_free(&bd.req_recv[n]);
+    }
 #endif
   }
+#ifdef MPI_PARALLEL
+#ifdef UTOFU_PARALLEL
+  utofu_free_vcq(bd.vcq_hdl);
+#endif
+#endif
 }
 
 
@@ -212,6 +256,13 @@ void BoundaryVariable::SetCompletedFlagSameProcess(NeighborBlock& nb) {
 void BoundaryVariable::SendBoundaryBuffers() {
   MeshBlock *pmb = pmy_block_;
   int mylevel = pmb->loc.level;
+#ifdef MPI_PARALLEL
+#ifdef UTOFU_PARALLEL
+  int rc;
+  void *cbdata;
+  bd_var_.sentcount = 0;
+#endif
+#endif
   for (int n=0; n<pbval_->nneighbor; n++) {
     NeighborBlock& nb = pbval_->neighbor[n];
     if (bd_var_.sflag[nb.bufid] == BoundaryStatus::completed) continue;
@@ -226,11 +277,37 @@ void BoundaryVariable::SendBoundaryBuffers() {
       CopyVariableBufferSameProcess(nb, ssize);
     }
 #ifdef MPI_PARALLEL
-    else  // MPI
+    else { // MPI
+#ifdef UTOFU_PARALLEL
+      do {
+        rc  = utofu_post_toq(bd_var_.vcq_hdl, bd_var_.toqd[nb.bufid],
+                             bd_var_.toqdsize[nb.bufid], NULL);
+        if (rc != UTOFU_SUCCESS) {
+          rc = utofu_poll_tcq(bd_var_.vcq_hdl, 0, &cbdata);
+          if (rc == UTOFU_SUCCESS) {
+            bd_var_.sentcount--;
+            rc  = utofu_post_toq(bd_var_.vcq_hdl, bd_var_.toqd[nb.bufid],
+                                 bd_var_.toqdsize[nb.bufid], NULL);
+          }
+        }
+      } while (rc != UTOFU_SUCCESS);
+      bd_var_.sentcount++;
+#else
       MPI_Start(&(bd_var_.req_send[nb.bufid]));
+#endif
+    }
 #endif
     bd_var_.sflag[nb.bufid] = BoundaryStatus::completed;
   }
+#ifdef MPI_PARALLEL
+#ifdef UTOFU_PARALLEL
+  do {
+    rc = utofu_poll_tcq(bd_var_.vcq_hdl, 0, &cbdata);
+    if (rc == UTOFU_SUCCESS)
+      bd_var_.sentcount--;
+  } while (rc != UTOFU_ERR_NOT_FOUND);
+#endif
+#endif
   return;
 }
 
@@ -241,6 +318,7 @@ void BoundaryVariable::SendBoundaryBuffers() {
 
 bool BoundaryVariable::ReceiveBoundaryBuffers() {
   bool bflag = true;
+  MeshBlock *pmb = pmy_block_;
 
   for (int n=0; n<pbval_->nneighbor; n++) {
     NeighborBlock& nb = pbval_->neighbor[n];
@@ -252,13 +330,19 @@ bool BoundaryVariable::ReceiveBoundaryBuffers() {
       }
 #ifdef MPI_PARALLEL
       else { // NOLINT // MPI boundary
-        int test;
+        int test = false;
+#ifdef UTOFU_PARALLEL
+        volatile Real *p = &bd_var_.recv[nb.bufid][bd_var_.rsize[nb.bufid]-1];
+        if (*p != not_arrived_)
+          test = true;
+#else
         // probe MPI communications.  This is a bit of black magic that seems to promote
         // communications to top of stack and gets them to complete more quickly
         if (MPI_IPROBE_ENABLED)
           MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &test,
                      MPI_STATUS_IGNORE);
         MPI_Test(&(bd_var_.req_recv[nb.bufid]), &test, MPI_STATUS_IGNORE);
+#endif
         if (!static_cast<bool>(test)) {
           bflag = false;
           continue;
@@ -288,6 +372,8 @@ void BoundaryVariable::SetBoundaries() {
     else
       SetBoundaryFromFiner(bd_var_.recv[nb.bufid], nb);
     bd_var_.flag[nb.bufid] = BoundaryStatus::completed; // completed
+    if (nb.snb.rank != Globals::my_rank)
+      bd_var_.recv[nb.bufid][bd_var_.rsize[nb.bufid]-1] = not_arrived_;
   }
 
   if (pbval_->block_bcs[BoundaryFace::inner_x2] == BoundaryFlag::polar ||
@@ -308,8 +394,14 @@ void BoundaryVariable::ReceiveAndSetBoundariesWithWait() {
   for (int n=0; n<pbval_->nneighbor; n++) {
     NeighborBlock& nb = pbval_->neighbor[n];
 #ifdef MPI_PARALLEL
-    if (nb.snb.rank != Globals::my_rank)
+    if (nb.snb.rank != Globals::my_rank) {
+#ifdef UTOFU_PARALLEL
+      volatile Real *p = &bd_var_.recv[nb.bufid][bd_var_.rsize[nb.bufid]-1];
+      while (*p == not_arrived_);
+#else
       MPI_Wait(&(bd_var_.req_recv[nb.bufid]),MPI_STATUS_IGNORE);
+#endif
+    }
 #endif
     if (nb.snb.level == mylevel)
       SetBoundarySameLevel(bd_var_.recv[nb.bufid], nb);
@@ -318,6 +410,8 @@ void BoundaryVariable::ReceiveAndSetBoundariesWithWait() {
     else
       SetBoundaryFromFiner(bd_var_.recv[nb.bufid], nb);
     bd_var_.flag[nb.bufid] = BoundaryStatus::completed; // completed
+    if (nb.snb.rank != Globals::my_rank)
+      bd_var_.recv[nb.bufid][bd_var_.rsize[nb.bufid]-1] = not_arrived_;
   }
 
   if (pbval_->block_bcs[BoundaryFace::inner_x2] == BoundaryFlag::polar
@@ -327,4 +421,3 @@ void BoundaryVariable::ReceiveAndSetBoundariesWithWait() {
   return;
 }
 
-//PolarFieldBoundaryAverage();

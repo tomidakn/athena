@@ -40,6 +40,10 @@
 #include <mpi.h>
 #endif
 
+#ifdef UTOFU_PARALLEL
+#include <utofu.h>
+#endif
+
 //! \todo (felker):
 //! - break-up the long functions in this file
 
@@ -622,7 +626,13 @@ void FaceCenteredBoundaryVariable::CopyPolarBufferSameProcess(
 
 void FaceCenteredBoundaryVariable::SendFluxCorrection() {
   MeshBlock *pmb=pmy_block_;
-
+#ifdef MPI_PARALLEL
+#ifdef UTOFU_PARALLEL
+  int rc;
+  void *cbdata;
+  bd_var_flcor_.sentcount = 0;
+#endif
+#endif
   // Send non-polar EMF values
   for (int n=0; n<pbval_->nneighbor; n++) {
     NeighborBlock& nb = pbval_->neighbor[n];
@@ -647,11 +657,38 @@ void FaceCenteredBoundaryVariable::SendFluxCorrection() {
       CopyFluxCorrectionBufferSameProcess(nb, p);
     }
 #ifdef MPI_PARALLEL
-    else
+    else {
+#ifdef UTOFU_PARALLEL
+      do {
+        rc  = utofu_post_toq(bd_var_flcor_.vcq_hdl, bd_var_flcor_.toqd[nb.bufid],
+                             bd_var_flcor_.toqdsize[nb.bufid], NULL);
+        if (rc != UTOFU_SUCCESS) {
+          rc = utofu_poll_tcq(bd_var_flcor_.vcq_hdl, 0, &cbdata);
+          if (rc == UTOFU_SUCCESS) {
+            bd_var_flcor_.sentcount--;
+            rc  = utofu_post_toq(bd_var_flcor_.vcq_hdl, bd_var_flcor_.toqd[nb.bufid],
+                                 bd_var_flcor_.toqdsize[nb.bufid], NULL);
+          }
+        }
+      } while (rc != UTOFU_SUCCESS);
+      bd_var_flcor_.sentcount++;
+#else
       MPI_Start(&(bd_var_flcor_.req_send[nb.bufid]));
+#endif
+    }
 #endif
     bd_var_flcor_.sflag[nb.bufid] = BoundaryStatus::completed;
   }
+
+#ifdef MPI_PARALLEL
+#ifdef UTOFU_PARALLEL
+  do {
+    rc = utofu_poll_tcq(bd_var_flcor_.vcq_hdl, 0, &cbdata);
+    if (rc == UTOFU_SUCCESS)
+      bd_var_flcor_.sentcount--;
+  } while (rc != UTOFU_ERR_NOT_FOUND);
+#endif
+#endif
 
   // Send polar EMF values
   for (int n = 0; n < pbval_->num_north_polar_blocks_; ++n) {
@@ -1628,7 +1665,13 @@ bool FaceCenteredBoundaryVariable::ReceiveFluxCorrection() {
           }
 #ifdef MPI_PARALLEL
           else { // NOLINT
-            int test;
+            int test = false;
+#ifdef UTOFU_PARALLEL
+            volatile Real *p
+              = &bd_var_flcor_.recv[nb.bufid][bd_var_flcor_.rsize[nb.bufid]-1];
+            if (*p != not_arrived_)
+              test = true;
+#else
             // probe MPI communications.  This is a bit of black magic that seems to
             // promote communications to top of stack and gets them to complete more
             // quickly
@@ -1636,6 +1679,7 @@ bool FaceCenteredBoundaryVariable::ReceiveFluxCorrection() {
               MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &test,
                          MPI_STATUS_IGNORE);
             MPI_Test(&(bd_var_flcor_.req_recv[nb.bufid]), &test, MPI_STATUS_IGNORE);
+#endif
             if (!static_cast<bool>(test) ) {
               flag = false;
               continue;
@@ -1647,6 +1691,8 @@ bool FaceCenteredBoundaryVariable::ReceiveFluxCorrection() {
         // boundary arrived; apply EMF correction
         SetFluxBoundarySameLevel(bd_var_flcor_.recv[nb.bufid], nb);
         bd_var_flcor_.flag[nb.bufid] = BoundaryStatus::completed;
+        if (nb.snb.rank != Globals::my_rank)
+          bd_var_flcor_.recv[nb.bufid][bd_var_flcor_.rsize[nb.bufid]-1] = not_arrived_;
       }
     }
     if (!flag) return flag;  // is this flag always false?
@@ -1671,10 +1717,16 @@ bool FaceCenteredBoundaryVariable::ReceiveFluxCorrection() {
 #ifdef MPI_PARALLEL
         else { // NOLINT
           int test;
+#ifdef UTOFU_PARALLEL
+          volatile Real *p = &bd_var_flcor_.recv[nb.bufid][bd_var_flcor_.rsize[nb.bufid]-1];
+          if (*p != not_arrived_)
+            test = true;
+#else
           if (MPI_IPROBE_ENABLED)
             MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &test,
                        MPI_STATUS_IGNORE);
           MPI_Test(&(bd_var_flcor_.req_recv[nb.bufid]), &test, MPI_STATUS_IGNORE);
+#endif
           if (!static_cast<bool>(test)) {
             flag = false;
             continue;
@@ -1686,6 +1738,8 @@ bool FaceCenteredBoundaryVariable::ReceiveFluxCorrection() {
       // boundary arrived; apply EMF correction
       SetFluxBoundaryFromFiner(bd_var_flcor_.recv[nb.bufid], nb);
       bd_var_flcor_.flag[nb.bufid] = BoundaryStatus::completed;
+      if (nb.snb.rank != Globals::my_rank)
+        bd_var_flcor_.recv[nb.bufid][bd_var_flcor_.rsize[nb.bufid]-1] = not_arrived_;
     }
   }
 

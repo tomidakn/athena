@@ -38,6 +38,10 @@
 #include <mpi.h>
 #endif
 
+#ifdef UTOFU_PARALLEL
+#include <utofu.h>
+#endif
+
 //! constructor
 
 FaceCenteredBoundaryVariable::FaceCenteredBoundaryVariable(MeshBlock *pmb,
@@ -1205,6 +1209,96 @@ void FaceCenteredBoundaryVariable::SetupPersistentMPI() {
   int nx2 = pmb->block_size.nx2;
   int nx3 = pmb->block_size.nx3;
   int &mylevel = pmb->loc.level;
+  int tag;
+
+#ifdef UTOFU_PARALLEL
+  const unsigned long int uflags = UTOFU_ONESIDED_FLAG_TCQ_NOTICE
+                                 | UTOFU_ONESIDED_FLAG_STRONG_ORDER
+                                 | UTOFU_ONESIDED_FLAG_CACHE_INJECTION;
+  // exchange VCQ and STADD - assuming one MeshBlock per process
+  std::uint64_t utrbuf[bd_var_.nbmax][2], utsbuf[bd_var_.nbmax][2];
+  MPI_Request utrreq[bd_var_.nbmax], utsreq[bd_var_.nbmax];
+#pragma omp critical(utofu_init)
+  for (int n=0; n<pbval_->nneighbor; n++) {
+    NeighborBlock& nb = pbval_->neighbor[n];
+    if (nb.snb.rank != Globals::my_rank) {
+      tag = pbval_->CreateBvalsMPITag(pmb->lid, nb.bufid, fc_phys_id_);
+      MPI_Irecv(utrbuf[nb.bufid], 2, MPI_UINT64_T, nb.snb.rank, tag,
+                MPI_COMM_WORLD, &(utrreq[nb.bufid]));
+      utsbuf[nb.bufid][0] = bd_var_.vcq_id;
+      utsbuf[nb.bufid][1] = bd_var_.lra[nb.bufid];
+      tag = pbval_->CreateBvalsMPITag(nb.snb.lid, nb.targetid, fc_phys_id_);
+      MPI_Isend(utsbuf[nb.bufid], 2, MPI_UINT64_T, nb.snb.rank, tag,
+                MPI_COMM_WORLD, &(utsreq[nb.bufid]));
+    }
+  }
+#pragma omp barrier
+  // wait for recv and set the data
+#pragma omp critical(utofu_init)
+  for (int n=0; n<pbval_->nneighbor; n++) {
+    NeighborBlock& nb = pbval_->neighbor[n];
+    if (nb.snb.rank != Globals::my_rank) {
+      MPI_Wait(&(utrreq[nb.bufid]), MPI_STATUS_IGNORE);
+      MPI_Request_free(&utrreq[nb.bufid]);
+      bd_var_.rvcq[nb.bufid] = utrbuf[nb.bufid][0];
+      bd_var_.rra[nb.bufid] = utrbuf[nb.bufid][1];
+      utofu_set_vcq_id_path(&bd_var_.rvcq[nb.bufid], NULL);
+    }
+  }
+#pragma omp barrier
+  // wait for send
+#pragma omp critical(utofu_init)
+  for (int n=0; n<pbval_->nneighbor; n++) {
+    NeighborBlock& nb = pbval_->neighbor[n];
+    if (nb.snb.rank != Globals::my_rank) {
+      MPI_Wait(&(utsreq[nb.bufid]), MPI_STATUS_IGNORE);
+      MPI_Request_free(&utsreq[nb.bufid]);
+    }
+  }
+#pragma omp barrier
+  // for EMF correction
+#pragma omp critical(utofu_init)
+  for (int n=0; n<pbval_->nneighbor; n++) {
+    NeighborBlock& nb = pbval_->neighbor[n];
+    if (nb.snb.rank != Globals::my_rank
+      && (nb.ni.type == NeighborConnect::face || nb.ni.type == NeighborConnect::edge)) {
+      tag = pbval_->CreateBvalsMPITag(pmb->lid, nb.bufid, fc_flx_phys_id_);
+      MPI_Irecv(utrbuf[nb.bufid], 2, MPI_UINT64_T, nb.snb.rank, tag,
+                MPI_COMM_WORLD, &(utrreq[nb.bufid]));
+      utsbuf[nb.bufid][0] = bd_var_flcor_.vcq_id;
+      utsbuf[nb.bufid][1] = bd_var_flcor_.lra[nb.bufid];
+      tag = pbval_->CreateBvalsMPITag(nb.snb.lid, nb.targetid, fc_flx_phys_id_);
+      MPI_Isend(utsbuf[nb.bufid], 2, MPI_UINT64_T, nb.snb.rank, tag,
+                MPI_COMM_WORLD, &(utsreq[nb.bufid]));
+    }
+  }
+#pragma omp barrier
+  // wait for recv and set the data
+#pragma omp critical(utofu_init)
+  for (int n=0; n<pbval_->nneighbor; n++) {
+    NeighborBlock& nb = pbval_->neighbor[n];
+    if (nb.snb.rank != Globals::my_rank
+      && (nb.ni.type == NeighborConnect::face || nb.ni.type == NeighborConnect::edge)) {
+      MPI_Wait(&(utrreq[nb.bufid]), MPI_STATUS_IGNORE);
+      MPI_Request_free(&utrreq[nb.bufid]);
+      bd_var_flcor_.rvcq[nb.bufid] = utrbuf[nb.bufid][0];
+      bd_var_flcor_.rra[nb.bufid] = utrbuf[nb.bufid][1];
+      utofu_set_vcq_id_path(&bd_var_flcor_.rvcq[nb.bufid], NULL);
+    }
+  }
+#pragma omp barrier
+  // wait for send
+#pragma omp critical(utofu_init)
+  for (int n=0; n<pbval_->nneighbor; n++) {
+    NeighborBlock& nb = pbval_->neighbor[n];
+    if (nb.snb.rank != Globals::my_rank
+      && (nb.ni.type == NeighborConnect::face || nb.ni.type == NeighborConnect::edge)) {
+      MPI_Wait(&(utsreq[nb.bufid]), MPI_STATUS_IGNORE);
+      MPI_Request_free(&utsreq[nb.bufid]);
+    }
+  }
+#pragma omp barrier
+#endif
 
   int f2 = pmy_mesh_->f2, f3 = pmy_mesh_->f3;
   int cng, cng1, cng2, cng3;
@@ -1212,7 +1306,6 @@ void FaceCenteredBoundaryVariable::SetupPersistentMPI() {
   cng2 = cng*f2;
   cng3 = cng*f3;
   int ssize, rsize;
-  int tag;
   // Initialize non-polar neighbor communications to other ranks
   for (int n=0; n<pbval_->nneighbor; n++) {
     NeighborBlock& nb = pbval_->neighbor[n];
@@ -1233,8 +1326,8 @@ void FaceCenteredBoundaryVariable::SetupPersistentMPI() {
           if (nb.ni.ox1 != 0) size1 = size1/NGHOST*(NGHOST + 1);
           if (nb.ni.ox2 != 0) size2 = size2/NGHOST*(NGHOST + 1);
           if (nb.ni.ox3 != 0) size3 = size3/NGHOST*(NGHOST + 1);
+          size = size1 + size2 + size3;
         }
-        size = size1 + size2 + size3;
         int f2c1 = ((nb.ni.ox1 == 0) ? ((nx1 + 1)/2 + 1) : NGHOST)
                    *((nb.ni.ox2 == 0) ? ((nx2 + 1)/2) : NGHOST)
                    *((nb.ni.ox3 == 0) ? ((nx3 + 1)/2) : NGHOST);
@@ -1267,8 +1360,16 @@ void FaceCenteredBoundaryVariable::SetupPersistentMPI() {
         ssize = fsize, rsize = csize;
       else // finer
         ssize = csize, rsize = fsize;
+      bd_var_.ssize[nb.bufid] = ssize;
+      bd_var_.rsize[nb.bufid] = rsize;
 
       // face-centered field: bd_var_
+#ifdef UTOFU_PARALLEL
+      bd_var_.recv[nb.bufid][rsize-1] = not_arrived_;
+      utofu_prepare_put(bd_var_.vcq_hdl, bd_var_.rvcq[nb.bufid], bd_var_.lsa[nb.bufid],
+            bd_var_.rra[nb.bufid], bd_var_.ssize[nb.bufid]*sizeof(Real), 0, uflags,
+            bd_var_.toqd[nb.bufid], &bd_var_.toqdsize[nb.bufid]);
+#else
       tag = pbval_->CreateBvalsMPITag(nb.snb.lid, nb.targetid, fc_phys_id_);
       if (bd_var_.req_send[nb.bufid] != MPI_REQUEST_NULL)
         MPI_Request_free(&bd_var_.req_send[nb.bufid]);
@@ -1279,7 +1380,7 @@ void FaceCenteredBoundaryVariable::SetupPersistentMPI() {
         MPI_Request_free(&bd_var_.req_recv[nb.bufid]);
       MPI_Recv_init(bd_var_.recv[nb.bufid], rsize, MPI_ATHENA_REAL,
                     nb.snb.rank, tag, MPI_COMM_WORLD, &(bd_var_.req_recv[nb.bufid]));
-
+#endif
       // emf correction
       int f2csize;
       if (nb.ni.type == NeighborConnect::face) { // face
@@ -1331,6 +1432,14 @@ void FaceCenteredBoundaryVariable::SetupPersistentMPI() {
         if ((nb.ni.type == NeighborConnect::face)
             || ((nb.ni.type == NeighborConnect::edge)
                 && (edge_flag_[nb.eid]))) {
+          bd_var_flcor_.ssize[nb.bufid] = bd_var_flcor_.rsize[nb.bufid] = size;
+          bd_var_flcor_.recv[nb.bufid][size-1] = not_arrived_;
+#ifdef UTOFU_PARALLEL
+          utofu_prepare_put(bd_var_flcor_.vcq_hdl, bd_var_flcor_.rvcq[nb.bufid],
+                bd_var_flcor_.lsa[nb.bufid], bd_var_flcor_.rra[nb.bufid],
+                bd_var_flcor_.ssize[nb.bufid]*sizeof(Real), 0, uflags,
+                bd_var_flcor_.toqd[nb.bufid], &bd_var_flcor_.toqdsize[nb.bufid]);
+#else
           tag = pbval_->CreateBvalsMPITag(nb.snb.lid, nb.targetid, fc_flx_phys_id_);
           if (bd_var_flcor_.req_send[nb.bufid] != MPI_REQUEST_NULL)
             MPI_Request_free(&bd_var_flcor_.req_send[nb.bufid]);
@@ -1343,23 +1452,36 @@ void FaceCenteredBoundaryVariable::SetupPersistentMPI() {
           MPI_Recv_init(bd_var_flcor_.recv[nb.bufid], size, MPI_ATHENA_REAL,
                         nb.snb.rank, tag, MPI_COMM_WORLD,
                         &(bd_var_flcor_.req_recv[nb.bufid]));
+#endif
         }
       }
       if (nb.snb.level>mylevel) { // finer neighbor
+        bd_var_flcor_.rsize[nb.bufid] = f2csize;
+        bd_var_flcor_.recv[nb.bufid][f2csize-1] = not_arrived_;
+#ifndef UTOFU_PARALLEL
         tag = pbval_->CreateBvalsMPITag(pmb->lid, nb.bufid, fc_flx_phys_id_);
         if (bd_var_flcor_.req_recv[nb.bufid] != MPI_REQUEST_NULL)
           MPI_Request_free(&bd_var_flcor_.req_recv[nb.bufid]);
         MPI_Recv_init(bd_var_flcor_.recv[nb.bufid], f2csize, MPI_ATHENA_REAL,
                       nb.snb.rank, tag, MPI_COMM_WORLD,
                       &(bd_var_flcor_.req_recv[nb.bufid]));
+#endif
       }
       if (nb.snb.level<mylevel) { // coarser neighbor
+        bd_var_flcor_.ssize[nb.bufid] = f2csize;
+#ifdef UTOFU_PARALLEL
+        utofu_prepare_put(bd_var_flcor_.vcq_hdl, bd_var_flcor_.rvcq[nb.bufid],
+              bd_var_flcor_.lsa[nb.bufid], bd_var_flcor_.rra[nb.bufid],
+              bd_var_flcor_.ssize[nb.bufid]*sizeof(Real), 0, uflags,
+              bd_var_flcor_.toqd[nb.bufid], &bd_var_flcor_.toqdsize[nb.bufid]);
+#else
         tag = pbval_->CreateBvalsMPITag(nb.snb.lid, nb.targetid, fc_flx_phys_id_);
         if (bd_var_flcor_.req_send[nb.bufid] != MPI_REQUEST_NULL)
           MPI_Request_free(&bd_var_flcor_.req_send[nb.bufid]);
         MPI_Send_init(bd_var_flcor_.send[nb.bufid], f2csize, MPI_ATHENA_REAL,
                       nb.snb.rank, tag, MPI_COMM_WORLD,
                       &(bd_var_flcor_.req_send[nb.bufid]));
+#endif
       }
     } // neighbor block is on separate MPI process
   } // end loop over neighbors
@@ -1395,6 +1517,13 @@ void FaceCenteredBoundaryVariable::SetupPersistentMPI() {
                     snb.rank, tag, MPI_COMM_WORLD, &req_flux_south_recv_[n]);
     }
   }
+#ifdef UTOFU_PARALLEL
+#pragma omp barrier
+#pragma omp single
+  MPI_Barrier(MPI_COMM_WORLD);
+#pragma omp barrier
+#endif
+
 #endif
   return;
 }
@@ -1412,14 +1541,19 @@ void FaceCenteredBoundaryVariable::StartReceiving(BoundaryCommSubset phase) {
   for (int n=0; n<pbval_->nneighbor; n++) {
     NeighborBlock& nb = pbval_->neighbor[n];
     if (nb.snb.rank != Globals::my_rank && phase != BoundaryCommSubset::gr_amr) {
+#ifndef UTOFU_PARALLEL
       MPI_Start(&(bd_var_.req_recv[nb.bufid]));
+#endif
       if (phase == BoundaryCommSubset::all &&
           (nb.ni.type == NeighborConnect::face || nb.ni.type == NeighborConnect::edge)) {
         if ((nb.snb.level > mylevel) ||
             ((nb.snb.level == mylevel) && ((nb.ni.type == NeighborConnect::face)
                                            || ((nb.ni.type == NeighborConnect::edge)
-                                               && (edge_flag_[nb.eid])))))
+                                               && (edge_flag_[nb.eid]))))) {
+#ifndef UTOFU_PARALLEL
           MPI_Start(&(bd_var_flcor_.req_recv[nb.bufid]));
+#endif
+        }
       }
     }
   }
@@ -1504,6 +1638,9 @@ void FaceCenteredBoundaryVariable::StartReceiving(BoundaryCommSubset phase) {
 //! \brief clean up the boundary flags after each loop
 
 void FaceCenteredBoundaryVariable::ClearBoundary(BoundaryCommSubset phase) {
+  MeshBlock *pmb = pmy_block_;
+  int mylevel = pmb->loc.level;
+
   // Clear non-polar boundary communications
   for (int n=0; n<pbval_->nneighbor; n++) {
     NeighborBlock& nb = pbval_->neighbor[n];
@@ -1514,9 +1651,26 @@ void FaceCenteredBoundaryVariable::ClearBoundary(BoundaryCommSubset phase) {
       bd_var_flcor_.flag[nb.bufid] = BoundaryStatus::waiting;
       bd_var_flcor_.sflag[nb.bufid] = BoundaryStatus::waiting;
     }
+  }
 #ifdef MPI_PARALLEL
-    MeshBlock *pmb = pmy_block_;
-    int mylevel = pmb->loc.level;
+#ifdef UTOFU_PARALLEL
+  int rc;
+  void *cbdata;
+  while (bd_var_.sentcount > 0) {
+    rc = utofu_poll_tcq(bd_var_.vcq_hdl, 0, &cbdata);
+    if (rc == UTOFU_SUCCESS)
+      bd_var_.sentcount--;
+  }
+  if (phase == BoundaryCommSubset::all) {
+    while (bd_var_flcor_.sentcount > 0) {
+      rc = utofu_poll_tcq(bd_var_flcor_.vcq_hdl, 0, &cbdata);
+      if (rc == UTOFU_SUCCESS)
+        bd_var_flcor_.sentcount--;
+    }
+  }
+#else
+  for (int n=0; n<pbval_->nneighbor; n++) {
+    NeighborBlock& nb = pbval_->neighbor[n];
     if (nb.snb.rank != Globals::my_rank && phase != BoundaryCommSubset::gr_amr) {
       // Wait for Isend
       MPI_Wait(&(bd_var_.req_send[nb.bufid]), MPI_STATUS_IGNORE);
@@ -1533,8 +1687,9 @@ void FaceCenteredBoundaryVariable::ClearBoundary(BoundaryCommSubset phase) {
         }
       }
     }
-#endif
   }
+#endif
+#endif
 
   // clear shearing box boundary communications
   if (pbval_->shearing_box == 1) {

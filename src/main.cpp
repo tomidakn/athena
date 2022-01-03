@@ -53,6 +53,11 @@
 #include <omp.h>
 #endif
 
+#ifdef UTOFU_PARALLEL
+#include <utofu.h>
+#endif
+
+
 //----------------------------------------------------------------------------------------
 //! \fn int main(int argc, char *argv[])
 //! \brief Athena++ main program
@@ -79,10 +84,11 @@ int main(int argc, char *argv[]) {
               << "MPI Initialization failed." << std::endl;
     return(0);
   }
-  if (mpiprv != MPI_THREAD_MULTIPLE) {
+  if (mpiprv < MPI_THREAD_SERIALIZED) {
     std::cout << "### FATAL ERROR in main" << std::endl
-              << "MPI_THREAD_MULTIPLE must be supported for the hybrid parallelzation. "
-              << MPI_THREAD_MULTIPLE << " : " << mpiprv
+              << "MPI_THREAD_SERIALIZED or higher must be supported "
+              << "for the hybrid parallelzation. "
+              << MPI_THREAD_SERIALIZED << " : " << mpiprv
               << std::endl;
     MPI_Finalize();
     return(0);
@@ -109,6 +115,16 @@ int main(int argc, char *argv[]) {
     MPI_Finalize();
     return(0);
   }
+#ifdef UTOFU_PARALLEL
+  int rc = utofu_get_onesided_tnis(&Utofu::tni_ids, &Utofu::num_tnis);
+  if (rc != UTOFU_SUCCESS || Utofu::num_tnis == 0) {
+    std::cout << "### FATAL ERROR in main" << std::endl
+              << "utofu initialization failed." << std::endl;
+    MPI_Finalize();
+    return(0);
+  }
+#endif
+
 #else  // no MPI
   Globals::my_rank = 0;
   Globals::nranks  = 1;
@@ -602,6 +618,9 @@ int main(int argc, char *argv[]) {
   delete pouts;
 
 #ifdef MPI_PARALLEL
+#ifdef UTOFU_PARALLEL
+  std::free(Utofu::tni_ids);
+#endif
   MPI_Finalize();
 #endif
 

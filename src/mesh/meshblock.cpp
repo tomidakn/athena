@@ -182,6 +182,7 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
   InitUserMeshBlockData(pin);
 
   dt_cool = 1e-5;
+
   return;
 }
 
@@ -524,6 +525,7 @@ void MeshBlock::RegisterMeshBlockData(FaceField &pvar_fc) {
   vars_fc_.push_back(pvar_fc);
   return;
 }
+
 
 
 //! \todo (felker):

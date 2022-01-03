@@ -34,6 +34,7 @@ class Hydro {
   friend class EquationOfState;
  public:
   Hydro(MeshBlock *pmb, ParameterInput *pin);
+  ~Hydro();
 
   // data
   // TODO(KGF): make this private, if possible
@@ -107,6 +108,9 @@ class Hydro {
   // 2D GR
   AthenaArray<Real> g_, gi_;       // metric and inverse, for some GR Riemann solvers
   AthenaArray<Real> cons_;         // conserved state, for some GR Riemann solvers
+
+  // temporary array for A64fx optimization
+  Real *fdn, *fvx, *fvy, *fvz, *fen, *eya, *eza, *wcta;
 
   // fourth-order hydro
   // 4D scratch arrays

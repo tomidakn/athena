@@ -44,6 +44,8 @@ std::string GetBoundaryString(BoundaryFlag input_flag);
 void CheckBoundaryFlag(BoundaryFlag block_flag, CoordinateDirection dir);
 BoundaryFlag GetMGBoundaryFlag(const std::string& input_string);
 
+constexpr Real not_arrived_ = std::numeric_limits<Real>::infinity();
+
 //----------------------------------------------------------------------------------------
 //! \class BoundaryBase
 //! \brief Base class for all BoundaryValues classes (BoundaryValues and MGBoundaryValues)

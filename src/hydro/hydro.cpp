@@ -144,7 +144,29 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
     laplacian_r_fc_.NewAthenaArray(nc1);
   }
 
+  int ncm = std::max(nc1, std::max(nc2, nc3)) + 1;
+  fdn = new Real[ncm];
+  fvx = new Real[ncm];
+  fvy = new Real[ncm];
+  fvz = new Real[ncm];
+  fen = new Real[ncm];
+  eya = new Real[ncm];
+  eza = new Real[ncm];
+  wcta = new Real[ncm];
+
   UserTimeStep_ = pmb->pmy_mesh->UserTimeStep_;
+}
+
+
+Hydro::~Hydro() {
+  delete[] fdn;
+  delete[] fvx;
+  delete[] fvy;
+  delete[] fvz;
+  delete[] fen;
+  delete[] eya;
+  delete[] eza;
+  delete[] wcta;
 }
 
 //----------------------------------------------------------------------------------------

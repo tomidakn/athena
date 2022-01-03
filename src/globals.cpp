@@ -18,8 +18,20 @@
 #include "athena.hpp"
 #include "globals.hpp"
 
+#ifdef UTOFU_PARALLEL
+#include <utofu.h>
+#endif
+
 namespace Globals {
 // all of these global variables are set at the start of main():
 int my_rank;         // MPI rank of this process
 int nranks;          // total number of MPI ranks
 }
+
+
+#ifdef UTOFU_PARALLEL
+namespace Utofu {
+size_t num_tnis;
+utofu_tni_id_t *tni_ids;
+}
+#endif

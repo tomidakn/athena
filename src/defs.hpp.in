@@ -78,6 +78,9 @@
 // OpenMP parallelization (OPENMP_PARALLEL or NOT_OPENMP_PARALLEL)
 #define @OPENMP_OPTION@
 
+// utofu parallelization (UTOFU_PARALLEL or NOT_UTOFU_PARALLEL)
+#define @UTOFU_OPTION@
+
 // HDF5 output (HDF5OUTPUT or NO_HDF5OUTPUT)
 #define @HDF5_OPTION@
 

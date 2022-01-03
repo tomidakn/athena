@@ -14,6 +14,7 @@
 #include <cstring>    // memcpy()
 #include <iomanip>
 #include <iostream>   // endl
+#include <limits>
 #include <sstream>    // stringstream
 #include <stdexcept>  // runtime_error
 #include <string>     // c_str()

@@ -1469,7 +1469,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
           if (NSCALARS > 0) {
             pmb->pscalars->sbvar.var_cc = &(pmb->pscalars->r);
             pmb->pscalars->sbvar.SendBoundaryBuffers();
-        }
+          }
         }
 
         // wait to receive AMR/SMR GR primitives
@@ -1486,7 +1486,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
                                                HydroBoundaryQuantity::cons);
           if (NSCALARS > 0) {
             pmb->pscalars->sbvar.var_cc = &(pmb->pscalars->s);
-        }
+          }
         }
       } // multilevel
 

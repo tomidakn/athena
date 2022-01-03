@@ -12,4 +12,12 @@ namespace Globals {
 extern int my_rank, nranks;
 }
 
+#ifdef UTOFU_PARALLEL
+#include <utofu.h>
+namespace Utofu {
+extern size_t num_tnis;
+extern utofu_tni_id_t *tni_ids;
+}
+#endif
+
 #endif // GLOBALS_HPP_

@@ -46,6 +46,8 @@
 #include <mpi.h>
 #endif
 
+#include <unistd.h>
+
 //----------------------------------------------------------------------------------------
 //! \brief BoundaryValues constructor
 //!        (the first object constructed inside the MeshBlock() constructor)
@@ -355,6 +357,7 @@ void BoundaryValues::StartReceivingSubset(BoundaryCommSubset phase,
   if (shearing_box != 0) {
     StartReceivingShear(phase);
   }
+
   return;
 }
 

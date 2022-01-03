@@ -25,6 +25,10 @@
 #include <mpi.h>
 #endif
 
+#ifdef UTOFU_PARALLEL
+#include <utofu.h>
+#endif
+
 // forward declarations
 class Mesh;
 class MeshBlock;
@@ -168,8 +172,18 @@ struct BoundaryData { // aggregate and POD (even when MPI_PARALLEL is defined)
   // red-black comm. pattern; need to check if they are available) and shearing box
   BoundaryStatus flag[kMaxNeighbor], sflag[kMaxNeighbor];
   Real *send[kMaxNeighbor], *recv[kMaxNeighbor];
+  int ssize[kMaxNeighbor], rsize[kMaxNeighbor];
 #ifdef MPI_PARALLEL
   MPI_Request req_send[kMaxNeighbor], req_recv[kMaxNeighbor];
+#ifdef UTOFU_PARALLEL
+  struct utofu_onesided_caps *onesided_caps;
+  utofu_vcq_hdl_t vcq_hdl;
+  utofu_vcq_id_t vcq_id, rvcq[kMaxNeighbor];
+  utofu_stadd_t lsa[kMaxNeighbor], lra[kMaxNeighbor], rra[kMaxNeighbor];
+  char *toqd[kMaxNeighbor];
+  size_t toqdsize[kMaxNeighbor];
+  int sentcount;
+#endif
 #endif
 };
 

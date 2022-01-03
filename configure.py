@@ -24,6 +24,8 @@
 #   -float            enable single precision (default is double)
 #   -mpi              enable parallelization with MPI
 #   -omp              enable parallelization with OpenMP
+#   -utofu            enable parallelization with utofu (along with MPI / OpenMP)
+#                     (works only with A64fx + MPI)
 #   -hdf5             enable HDF5 output (requires the HDF5 library)
 #   --hdf5_path=path  path to HDF5 libraries (requires the HDF5 library)
 #   -fft              enable FFT (requires the FFTW library)
@@ -170,6 +172,12 @@ parser.add_argument('-omp',
                     action='store_true',
                     default=False,
                     help='enable parallelization with OpenMP')
+
+# -utofu argument
+parser.add_argument('-utofu',
+                    action='store_true',
+                    default=False,
+                    help='enable parallelization with utofu (along with MPI/OMP)')
 
 # --grav=[name] argument
 parser.add_argument('--grav',
@@ -654,6 +662,7 @@ else:
 
 # -mpi argument
 if args['mpi']:
+    definitions['UTOFU_OPTION'] = 'NOT_UTOFU_PARALLEL'
     definitions['MPI_OPTION'] = 'MPI_PARALLEL'
     definitions['MPI_IPROBE'] = '1'
     if (args['cxx'] == 'g++' or args['cxx'] == 'icpc' or args['cxx'] == 'icpc-debug'
@@ -669,11 +678,15 @@ if args['mpi']:
     if args['cxx'] == 'a64fx':
         definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = 'mpiFCCpx'  # noqa
         definitions['MPI_IPROBE'] = '0'
+        if args['utofu']:
+            makefile_options['LIBRARY_FLAGS'] += ' -ltofucom'
+            definitions['UTOFU_OPTION'] = 'UTOFU_PARALLEL'
     # --mpiccmd=[name] argument
     if args['mpiccmd'] is not None:
         definitions['COMPILER_COMMAND'] = makefile_options['COMPILER_COMMAND'] = args['mpiccmd']  # noqa
 else:
     definitions['MPI_OPTION'] = 'NOT_MPI_PARALLEL'
+    definitions['UTOFU_OPTION'] = 'NOT_UTOFU_PARALLEL'
     definitions['MPI_IPROBE'] = '1' # this is not used anyway
 
 # -omp argument
@@ -847,6 +860,7 @@ print('  Floating-point precision:   ' + ('single' if args['float'] else 'double
 print('  Number of ghost cells:      ' + args['nghost'])
 print('  MPI parallelism:            ' + ('ON' if args['mpi'] else 'OFF'))
 print('  OpenMP parallelism:         ' + ('ON' if args['omp'] else 'OFF'))
+print('  utofu parallelism:          ' + ('ON' if args['utofu'] else 'OFF'))
 print('  FFT:                        ' + ('ON' if args['fft'] else 'OFF'))
 print('  HDF5 output:                ' + ('ON' if args['hdf5'] else 'OFF'))
 if args['hdf5']:

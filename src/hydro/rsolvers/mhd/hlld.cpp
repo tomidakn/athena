@@ -41,8 +41,6 @@ void Hydro::RiemannSolver(const int k, const int j, const int il, const int iu,
                           AthenaArray<Real> &wct, const AthenaArray<Real> &dxw) {
   int ivy = IVX + ((ivx-IVX)+1)%3;
   int ivz = IVX + ((ivx-IVX)+2)%3;
-  const int N = 128;
-  static Real fdn[N], fvx[N], fvy[N], fvz[N], fen[N], eya[N], eza[N], wcta[N];
 
   EquationOfState *peos = pmy_block->peos;
   Real gm = peos->GetGamma();
