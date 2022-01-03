@@ -179,7 +179,8 @@ struct BoundaryData { // aggregate and POD (even when MPI_PARALLEL is defined)
   struct utofu_onesided_caps *onesided_caps;
   utofu_vcq_hdl_t vcq_hdl;
   utofu_vcq_id_t vcq_id, rvcq[kMaxNeighbor];
-  utofu_stadd_t lsa[kMaxNeighbor], lra[kMaxNeighbor], rra[kMaxNeighbor];
+  utofu_stadd_t lsa[kMaxNeighbor], lra[kMaxNeighbor], rra[kMaxNeighbor],
+                lfa[kMaxNeighbor], rfa[kMaxNeighbor];
   char *toqd[kMaxNeighbor];
   size_t toqdsize[kMaxNeighbor];
   int sentcount;

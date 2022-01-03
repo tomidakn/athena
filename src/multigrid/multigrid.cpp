@@ -57,17 +57,17 @@ Multigrid::Multigrid(MultigridDriver *pmd, MeshBlock *pmb, int invar, int nghost
     for (int i = 0; i < 6; ++i)
       mg_block_bcs_[i] = pmy_driver_->mg_mesh_bcs_[i];
   }
-  rdx_=(size_.x1max-size_.x1min)/static_cast<Real>(size_.nx1);
-  rdy_=(size_.x2max-size_.x2min)/static_cast<Real>(size_.nx2);
-  rdz_=(size_.x3max-size_.x3min)/static_cast<Real>(size_.nx3);
+  rdx_ = (size_.x1max-size_.x1min) / static_cast<Real>(size_.nx1);
+  rdy_ = (size_.x2max-size_.x2min) / static_cast<Real>(size_.nx2);
+  rdz_ = (size_.x3max-size_.x3min) / static_cast<Real>(size_.nx3);
 
-  nlevel_=0;
+  nlevel_ = 0;
   if (pmy_block_ == nullptr) { // root
     int nbx, nby, nbz;
     for (int l = 0; l < 20; l++) {
       if (size_.nx1%(1<<l) == 0 && size_.nx2%(1<<l) == 0 && size_.nx3%(1<<l) == 0) {
-        nbx=size_.nx1/(1<<l), nby=size_.nx2/(1<<l), nbz=size_.nx3/(1<<l);
-        nlevel_=l+1;
+        nbx = size_.nx1/(1<<l), nby = size_.nx2/(1<<l), nbz = size_.nx3/(1<<l);
+        nlevel_ = l+1;
       }
     }
     int nmaxr=std::max(nbx, std::max(nby, nbz));
@@ -80,7 +80,7 @@ Multigrid::Multigrid(MultigridDriver *pmd, MeshBlock *pmb, int invar, int nghost
           << " most efficient configuration"
           << " as the coarsest level is not solved exactly but iteratively." << std::endl;
     }
-    if (nbx*nby*nbz>100 && Globals::my_rank==0) {
+    if (nbx*nby*nbz > 100 && Globals::my_rank == 0) {
       std::cout << "### Warning in Multigrid::Multigrid" << std::endl
                 << "The degrees of freedom on the coarsest level is very large: "
                 << nbx << " x " << nby << " x " << nbz << " = " << nbx*nby*nbz<< std::endl
@@ -125,21 +125,21 @@ Multigrid::Multigrid(MultigridDriver *pmd, MeshBlock *pmb, int invar, int nghost
     else
     uold_ = new AthenaArray<Real>[nlevel_];
   for (int l = 0; l < nlevel_; l++) {
-    int ll=nlevel_-1-l;
-    int ncx=(size_.nx1>>ll)+2*ngh_;
-    int ncy=(size_.nx2>>ll)+2*ngh_;
-    int ncz=(size_.nx3>>ll)+2*ngh_;
-    u_[l].NewAthenaArray(nvar_,ncz,ncy,ncx);
-    src_[l].NewAthenaArray(nvar_,ncz,ncy,ncx);
-    def_[l].NewAthenaArray(nvar_,ncz,ncy,ncx);
+    int ll = nlevel_-1-l;
+    int ncx = (size_.nx1>>ll)+2*ngh_;
+    int ncy = (size_.nx2>>ll)+2*ngh_;
+    int ncz = (size_.nx3>>ll)+2*ngh_;
+    u_[l].NewAthenaArray(nvar_, ncz, ncy, ncx);
+    src_[l].NewAthenaArray(nvar_, ncz, ncy, ncx);
+    def_[l].NewAthenaArray(nvar_, ncz, ncy, ncx);
     if (!((pmy_block_ != nullptr) && (l == nlevel_-1)))
-      uold_[l].NewAthenaArray(nvar_,ncz,ncy,ncx);
-    coord_[l].AllocateMGCoordinates(ncx,ncy,ncz);
+      uold_[l].NewAthenaArray(nvar_, ncz, ncy, ncx);
+    coord_[l].AllocateMGCoordinates(ncx, ncy, ncz);
     coord_[l].CalculateMGCoordinates(size_, ll, ngh_);
-    ncx=(size_.nx1>>(ll+1))+2*ngh_;
-    ncy=(size_.nx2>>(ll+1))+2*ngh_;
-    ncz=(size_.nx3>>(ll+1))+2*ngh_;
-    ccoord_[l].AllocateMGCoordinates(ncx,ncy,ncz);
+    ncx = (size_.nx1>>(ll+1))+2*ngh_;
+    ncy = (size_.nx2>>(ll+1))+2*ngh_;
+    ncz = (size_.nx3>>(ll+1))+2*ngh_;
+    ccoord_[l].AllocateMGCoordinates(ncx, ncy, ncz);
     ccoord_[l].CalculateMGCoordinates(size_, ll+1, ngh_);
   }
 }
@@ -685,7 +685,7 @@ void Multigrid::SetData(MGVariable type, int n, int k, int j, int i, Real v) {
 void Multigrid::Restrict(AthenaArray<Real> &dst, const AthenaArray<Real> &src,
                          int il, int iu, int jl, int ju, int kl, int ku, bool th) {
   if (th == true && (ku-kl) >=  minth_) {
-  for (int v=0; v<nvar_; ++v) {
+    for (int v=0; v<nvar_; ++v) {
 #pragma omp parallel for num_threads(pmy_driver_->nthreads_)
       for (int k=kl; k<=ku; ++k) {
         int fk = 2*k - kl;
@@ -708,15 +708,13 @@ void Multigrid::Restrict(AthenaArray<Real> &dst, const AthenaArray<Real> &src,
         int fk = 2*k - kl;
         for (int j=jl; j<=ju; ++j) {
           int fj = 2*j - jl;
-#pragma ivdep
-          for (int i=il, fi=il; i<=iu; ++i, fi+=2)
-            for (int i=il; i<=iu; ++i) {
-              int fi = 2*i - il;
-              dst(v, k, j, i)=0.125*(src(v, fk,   fj,   fi)+src(v, fk,   fj,   fi+1)
-                                    +src(v, fk,   fj+1, fi)+src(v, fk,   fj+1, fi+1)
-                                    +src(v, fk+1, fj,   fi)+src(v, fk+1, fj,   fi+1)
-                                    +src(v, fk+1, fj+1, fi)+src(v, fk+1, fj+1, fi+1));
-            }
+#pragma clang loop vectorize(assume_safety)
+          for (int i=il; i<=iu; ++i) {
+            int fi = 2*i - il;
+            dst(v, k, j, i)=0.125*(src(v, fk,   fj,   fi)+src(v, fk,   fj,   fi+1)
+                                  +src(v, fk,   fj+1, fi)+src(v, fk,   fj+1, fi+1)
+                                  +src(v, fk+1, fj,   fi)+src(v, fk+1, fj,   fi+1)
+                                  +src(v, fk+1, fj+1, fi)+src(v, fk+1, fj+1, fi+1));
           }
         }
       }

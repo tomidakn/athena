@@ -88,6 +88,10 @@ void MGBoundaryValues::InitBoundaryData(BoundaryQuantity type) {
 #ifdef MPI_PARALLEL
 #ifdef UTOFU_PARALLEL
   // use the same VCQ allocated in bdata_[0]
+  const unsigned long int uflags = UTOFU_ONESIDED_FLAG_TCQ_NOTICE
+                                 | UTOFU_ONESIDED_FLAG_STRONG_ORDER
+                                 | UTOFU_ONESIDED_FLAG_CACHE_INJECTION;
+  const BoundaryStatus arr = BoundaryStatus::arrived;
   utofu_tni_id_t tni_id = Utofu::tni_ids[pmy_mg_->pmy_block_->gid%Utofu::num_tnis];
   utofu_query_onesided_caps(tni_id, &bdata_[0].onesided_caps);
   if (utofu_create_vcq(tni_id, 0, &bdata_[0].vcq_hdl) != UTOFU_SUCCESS) {
@@ -100,7 +104,8 @@ void MGBoundaryValues::InitBoundaryData(BoundaryQuantity type) {
 #endif
 #endif
 
-  for (int c = 0; c < 3; ++c) {
+  int nbuf = triplebuf_?3:1;
+  for (int c = 0; c < nbuf; ++c) {
     bdata_[c].nbmax = maxneighbor_;
     for (int n = 0; n < bdata_[c].nbmax; ++n) {
       // Clear flags and requests
@@ -150,10 +155,11 @@ void MGBoundaryValues::InitBoundaryData(BoundaryQuantity type) {
 #ifdef UTOFU_PARALLEL
       utofu_reg_mem(bdata_[0].vcq_hdl, bdata_[c].send[n], sizeof(Real)*size, 0,
                     &(bdata_[c].lsa[n]));
-      utofu_reg_mem(bdata_[0].vcq_hdl, bdata_[c].recv[n], sizeof(Real)*size,0,
+      utofu_reg_mem(bdata_[0].vcq_hdl, bdata_[c].recv[n], sizeof(Real)*size, 0,
                     &(bdata_[c].lra[n]));
-      utofu_reg_mem(bdata_[0].vcq_hdl, bdata_[c].flag[n], sizeof(BoundaryStatus),0,
+      utofu_reg_mem(bdata_[0].vcq_hdl, &(bdata_[c].flag[n]), sizeof(BoundaryStatus), 0,
                     &(bdata_[c].lfa[n]));
+      bdata_[c].toqd[n] = new char[bdata_[0].onesided_caps->max_toq_desc_size];
 #endif
 #endif
     }
@@ -161,44 +167,65 @@ void MGBoundaryValues::InitBoundaryData(BoundaryQuantity type) {
 
 #ifdef MPI_PARALLEL
 #ifdef UTOFU_PARALLEL
-  // exchange VCQ and STADD - assuming one MeshBlock per process
-  std::uint64_t utrbuf[bdata_[c].nbmax][3], utsbuf[bdata_[c].nbmax][3];
-  MPI_Request utrreq[bdata_[c].nbmax], utsreq[bdata_[c].nbmax];
-  for (int n=0; n<nneighbor; n++) {
-    NeighborBlock& nb = neighbor[n];
-    if (nb.snb.rank != Globals::my_rank) {
-      int tag;
-      tag = CreateBvalsMPITag(pmy_mg_->pmy_block_->lid, nb.bufid,
-                              pmy_mg_->pmy_driver_->mg_phys_id_);
-      MPI_Irecv(utrbuf[nb.bufid], 2, MPI_UINT64_T, nb.snb.rank, tag,
-                MPI_COMM_WORLD, &(utrreq[nb.bufid]));
-      utsbuf[nb.bufid][0] = bdata_[0].vcq_id;
-      utsbuf[nb.bufid][1] = bdata_[c].lra[nb.bufid];
-      tag = CreateBvalsMPITag(nb.snb.lid, nb.targetid,
-                              pmy_mg_->pmy_driver_->mg_phys_id_);
-      MPI_Isend(utsbuf[nb.bufid], 2, MPI_UINT64_T, nb.snb.rank, tag,
-                MPI_COMM_WORLD, &(utsreq[nb.bufid]));
+  for (int c = 0; c < nbuf; ++c) {
+    // exchange VCQ and STADD - assuming one MeshBlock per process
+    std::uint64_t utrbuf[bdata_[c].nbmax][3], utsbuf[bdata_[c].nbmax][3];
+    MPI_Request utrreq[bdata_[c].nbmax], utsreq[bdata_[c].nbmax];
+    for (int n=0; n<nneighbor; n++) {
+      NeighborBlock& nb = neighbor[n];
+      if (nb.snb.rank != Globals::my_rank) {
+        int tag;
+        tag = CreateBvalsMPITag(pmy_mg_->pmy_block_->lid, nb.bufid,
+                                pmy_mg_->pmy_driver_->mg_phys_id_);
+        MPI_Irecv(utrbuf[nb.bufid], 3, MPI_UINT64_T, nb.snb.rank, tag,
+                  MPI_COMM_WORLD, &(utrreq[nb.bufid]));
+        utsbuf[nb.bufid][0] = bdata_[0].vcq_id;
+        utsbuf[nb.bufid][1] = bdata_[c].lra[nb.bufid];
+        utsbuf[nb.bufid][2] = bdata_[c].lfa[nb.bufid];
+        tag = CreateBvalsMPITag(nb.snb.lid, nb.targetid,
+                                pmy_mg_->pmy_driver_->mg_phys_id_);
+        MPI_Isend(utsbuf[nb.bufid], 3, MPI_UINT64_T, nb.snb.rank, tag,
+                  MPI_COMM_WORLD, &(utsreq[nb.bufid]));
+      }
+    }
+    // wait for recv and set the data
+    for (int n=0; n<nneighbor; n++) {
+      NeighborBlock& nb = neighbor[n];
+      if (nb.snb.rank != Globals::my_rank) {
+        MPI_Wait(&(utrreq[nb.bufid]), MPI_STATUS_IGNORE);
+        MPI_Request_free(&utrreq[nb.bufid]);
+        bdata_[c].rvcq[nb.bufid] = utrbuf[nb.bufid][0];
+        bdata_[c].rra[nb.bufid] = utrbuf[nb.bufid][1];
+        bdata_[c].rfa[nb.bufid] = utrbuf[nb.bufid][2];
+        utofu_set_vcq_id_path(&bdata_[c].rvcq[nb.bufid], NULL);
+      }
+    }
+    // wait for send
+    for (int n=0; n<nneighbor; n++) {
+      NeighborBlock& nb = neighbor[n];
+      if (nb.snb.rank != Globals::my_rank) {
+        MPI_Wait(&(utsreq[nb.bufid]), MPI_STATUS_IGNORE);
+        MPI_Request_free(&utsreq[nb.bufid]);
+      }
     }
   }
-  // wait for recv and set the data
-  for (int n=0; n<nneighbor; n++) {
-    NeighborBlock& nb = neighbor[n];
-    if (nb.snb.rank != Globals::my_rank) {
-      MPI_Wait(&(utrreq[nb.bufid]), MPI_STATUS_IGNORE);
-      MPI_Request_free(&utrreq[nb.bufid]);
-      bdata_[c].rvcq[nb.bufid] = utrbuf[nb.bufid][0];
-      bdata_[c].rra[nb.bufid] = utrbuf[nb.bufid][1];
-      utofu_set_vcq_id_path(&bdata_[c].rvcq[nb.bufid], NULL);
+  // prepare TOQ descripter for uTofu put piggyback
+  for (int c = 0; c < nbuf; ++c) {
+    for (int n=0; n<nneighbor; n++) {
+      NeighborBlock& nb = neighbor[n];
+      if (nb.snb.rank != Globals::my_rank) {
+        utofu_prepare_put_piggyback(bdata_[0].vcq_hdl, bdata_[c].rvcq[nb.bufid],
+                      (void *)(&arr), bdata_[c].rfa[nb.bufid], sizeof(BoundaryStatus), 0,
+                      uflags, bdata_[c].toqd[nb.bufid], &bdata_[c].toqdsize[nb.bufid]);
+      }
     }
   }
-  // wait for send
-  for (int n=0; n<nneighbor; n++) {
-    NeighborBlock& nb = neighbor[n];
-    if (nb.snb.rank != Globals::my_rank) {
-      MPI_Wait(&(utsreq[nb.bufid]), MPI_STATUS_IGNORE);
-      MPI_Request_free(&utsreq[nb.bufid]);
-    }
-  }
+
+#pragma omp barrier
+#pragma omp single
+  MPI_Barrier(MPI_COMM_WORLD);
+#pragma omp barrier
+
 #endif
 #endif
 }
@@ -209,22 +236,26 @@ void MGBoundaryValues::InitBoundaryData(BoundaryQuantity type) {
 //! \brief Destroy BoundaryData<> structure
 
 void MGBoundaryValues::DestroyBoundaryData() {
-  for (int n=0; n<bdata_[c].nbmax; n++) {
+  int nbuf = triplebuf_?3:1;
+  for (int c = 0; c < nbuf; ++c) {
+    for (int n = 0; n < bdata_[c].nbmax; ++n) {
 #ifdef MPI_PARALLEL
 #ifdef UTOFU_PARALLEL
-    utofu_dereg_mem(bdata_[0].vcq_hdl, bdata_[c].lsa[n], 0);
-    utofu_dereg_mem(bdata_[0].vcq_hdl, bdata_[c].lra[n], 0);
-    delete [] bdata_[c].toqd[n];
+      utofu_dereg_mem(bdata_[0].vcq_hdl, bdata_[c].lsa[n], 0);
+      utofu_dereg_mem(bdata_[0].vcq_hdl, bdata_[c].lra[n], 0);
+      utofu_dereg_mem(bdata_[0].vcq_hdl, bdata_[c].lfa[n], 0);
+      delete [] bdata_[c].toqd[n];
 #endif
 #endif
-    delete [] bdata_[c].send[n];
-    delete [] bdata_[c].recv[n];
+      delete [] bdata_[c].send[n];
+      delete [] bdata_[c].recv[n];
 #ifdef MPI_PARALLEL
       if (bdata_[c].req_send[n] != MPI_REQUEST_NULL)
         MPI_Request_free(&bdata_[c].req_send[n]);
       if (bdata_[c].req_recv[n] != MPI_REQUEST_NULL)
         MPI_Request_free(&bdata_[c].req_recv[n]);
 #endif
+    }
   }
 #ifdef MPI_PARALLEL
 #ifdef UTOFU_PARALLEL
@@ -460,12 +491,6 @@ void MGBoundaryValues::StartReceivingMultigrid(BoundaryQuantity type, bool foldd
   int nvar = pmy_mg_->nvar_, ngh = pmy_mg_->ngh_, cngh = ngh;
   int nc = pmy_mg_->GetCurrentNumberOfCells();
 
-#ifdef UTOFU_PARALLEL
-#pragma omp barrier
-#pragma omp single
-  MPI_Barrier(MPI_COMM_WORLD);
-#endif
-
   for (int n=0; n<nneighbor; n++) {
     NeighborBlock& nb = neighbor[n];
     if (nb.snb.rank!=Globals::my_rank) {
@@ -494,7 +519,6 @@ void MGBoundaryValues::StartReceivingMultigrid(BoundaryQuantity type, bool foldd
       size *= nvar;
 #ifdef UTOFU_PARALLEL
       bdata_[bcolor_].rsize[nb.bufid] = size;
-      bdata_[bcolor_].recv[nb.bufid][size-1] = not_arrived_;
 #else
       int tag = CreateBvalsMPITag(pmy_mg_->pmy_block_->lid, nb.bufid,
                                   pmy_mg_->pmy_driver_->mg_phys_id_);
@@ -503,11 +527,6 @@ void MGBoundaryValues::StartReceivingMultigrid(BoundaryQuantity type, bool foldd
 #endif
     }
   }
-#ifdef UTOFU_PARALLEL
-#pragma omp barrier
-#pragma omp single
-  MPI_Barrier(MPI_COMM_WORLD);
-#endif
 #endif
   return;
 }
@@ -748,6 +767,8 @@ bool MGBoundaryValues::SendMultigridBoundaryBuffers(BoundaryQuantity type,
   const unsigned long int uflags = UTOFU_ONESIDED_FLAG_TCQ_NOTICE
                                  | UTOFU_ONESIDED_FLAG_STRONG_ORDER
                                  | UTOFU_ONESIDED_FLAG_CACHE_INJECTION;
+  int rc;
+  void *cbdata;
   bdata_[bcolor_].sentcount = 0;
 #endif
 #endif
@@ -793,9 +814,33 @@ bool MGBoundaryValues::SendMultigridBoundaryBuffers(BoundaryQuantity type,
     else { // NOLINT
 #ifdef UTOFU_PARALLEL
       bdata_[bcolor_].ssize[nb.bufid] = ssize;
-      utofu_put(bdata_[0].vcq_hdl, bdata_[bcolor_].rvcq[nb.bufid],
-                bdata_[bcolor_].lsa[nb.bufid], bdata_[bcolor_].rra[nb.bufid],
-                bdata_[bcolor_].ssize[nb.bufid]*sizeof(Real), 0, uflags, NULL);
+      do {
+        rc = utofu_put(bdata_[0].vcq_hdl, bdata_[bcolor_].rvcq[nb.bufid],
+                       bdata_[bcolor_].lsa[nb.bufid], bdata_[bcolor_].rra[nb.bufid],
+                       bdata_[bcolor_].ssize[nb.bufid]*sizeof(Real), 0, uflags, NULL);
+        if (rc != UTOFU_SUCCESS) {
+          rc = utofu_poll_tcq(bdata_[0].vcq_hdl, 0, &cbdata);
+          if (rc == UTOFU_SUCCESS) {
+            bdata_[bcolor_].sentcount--;
+            rc = utofu_put(bdata_[0].vcq_hdl, bdata_[bcolor_].rvcq[nb.bufid],
+                           bdata_[bcolor_].lsa[nb.bufid], bdata_[bcolor_].rra[nb.bufid],
+                           bdata_[bcolor_].ssize[nb.bufid]*sizeof(Real), 0, uflags, NULL);
+          }
+        }
+      } while (rc != UTOFU_SUCCESS);
+      bdata_[bcolor_].sentcount++;
+      do {
+        rc = utofu_post_toq(bdata_[0].vcq_hdl, bdata_[bcolor_].toqd[nb.bufid],
+                             bdata_[bcolor_].toqdsize[nb.bufid], NULL);
+        if (rc != UTOFU_SUCCESS) {
+          rc = utofu_poll_tcq(bdata_[0].vcq_hdl, 0, &cbdata);
+          if (rc == UTOFU_SUCCESS) {
+            bdata_[bcolor_].sentcount--;
+              rc = utofu_post_toq(bdata_[0].vcq_hdl, bdata_[bcolor_].toqd[nb.bufid],
+                                  bdata_[bcolor_].toqdsize[nb.bufid], NULL);
+          }
+        }
+      } while (rc != UTOFU_SUCCESS);
       bdata_[bcolor_].sentcount++;
 #else
       int tag = CreateBvalsMPITag(nb.snb.lid, nb.targetid,
@@ -1006,9 +1051,9 @@ bool MGBoundaryValues::ReceiveMultigridBoundaryBuffers(BoundaryQuantity type,
       else { // NOLINT
         int test = false;
 #ifdef UTOFU_PARALLEL
-        volatile Real *p =
-          &bdata_[bcolor_].recv[nb.bufid][bdata_[bcolor_].rsize[nb.bufid]-1];
-        if (*p != not_arrived_)
+        // note: this test should not be necessary because it is already tested above
+        volatile BoundaryStatus *p = &(bdata_[bcolor_].flag[nb.bufid]);
+        if (*p == BoundaryStatus::arrived)
           test = true;
 #else
         if (MPI_IPROBE_ENABLED)
@@ -1101,7 +1146,7 @@ void MGBoundaryValues::ProlongateMultigridBoundaries(bool folddata) {
         int fk = (fk - ngh) * 2 + ngh;
         for (int j=sj; j<=ej; ++j) {
           int fj = (fj - ngh) * 2 + ngh;
-#pragma clang loop vectorize(assume_safety)
+#pragma ivdep
           for (int i=si; i<=ei; ++i) {
             int fi = (fi - ngh) * 2 + ngh;
             if (fk >= 0 && fj >= 0 && fi >= 0)
@@ -1154,7 +1199,7 @@ void MGBoundaryValues::ProlongateMultigridBoundaries(bool folddata) {
           int fk = (fk - ngh) * 2 + ngh;
           for (int j=sj; j<=ej; ++j) {
             int fj = (fj - ngh) * 2 + ngh;
-#pragma clang loop vectorize(assume_safety)
+#pragma ivdep
             for (int i=si; i<=ei; ++i) {
               int fi = (fi - ngh) * 2 + ngh;
               if (fk >= 0 && fj >= 0 && fi >= 0)

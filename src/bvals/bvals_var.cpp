@@ -280,14 +280,14 @@ void BoundaryVariable::SendBoundaryBuffers() {
     else { // MPI
 #ifdef UTOFU_PARALLEL
       do {
-        rc  = utofu_post_toq(bd_var_.vcq_hdl, bd_var_.toqd[nb.bufid],
-                             bd_var_.toqdsize[nb.bufid], NULL);
+        rc = utofu_post_toq(bd_var_.vcq_hdl, bd_var_.toqd[nb.bufid],
+                            bd_var_.toqdsize[nb.bufid], NULL);
         if (rc != UTOFU_SUCCESS) {
           rc = utofu_poll_tcq(bd_var_.vcq_hdl, 0, &cbdata);
           if (rc == UTOFU_SUCCESS) {
             bd_var_.sentcount--;
-            rc  = utofu_post_toq(bd_var_.vcq_hdl, bd_var_.toqd[nb.bufid],
-                                 bd_var_.toqdsize[nb.bufid], NULL);
+            rc = utofu_post_toq(bd_var_.vcq_hdl, bd_var_.toqd[nb.bufid],
+                                bd_var_.toqdsize[nb.bufid], NULL);
           }
         }
       } while (rc != UTOFU_SUCCESS);
