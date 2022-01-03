@@ -216,7 +216,7 @@ void MGGravity::Smooth(AthenaArray<Real> &u, const AthenaArray<Real> &src, int r
     for (int k=kl; k<=ku; k++) {
       for (int j=jl; j<=ju; j++) {
         int c = (color + k + j) & 1;
-#pragma ivdep
+#pragma clang loop vectorize(assume_safety)
         for (int i=il+c; i<=iu; i+=2)
           u(0,k,j,i) -= ((6.0*u(0,k,j,i) - u(0,k+1,j,i) - u(0,k,j+1,i) - u(0,k,j,i+1)
                         - u(0,k-1,j,i) - u(0,k,j-1,i) - u(0,k,j,i-1))
@@ -227,7 +227,7 @@ void MGGravity::Smooth(AthenaArray<Real> &u, const AthenaArray<Real> &src, int r
     for (int k=kl; k<=ku; k++) {
       for (int j=jl; j<=ju; j++) {
         int c = (color + k + j) & 1;
-#pragma ivdep
+#pragma clang loop vectorize(assume_safety)
         for (int i=il+c; i<=iu; i+=2)
           u(0,k,j,i) -= ((6.0*u(0,k,j,i) - u(0,k+1,j,i) - u(0,k,j+1,i) - u(0,k,j,i+1)
                         - u(0,k-1,j,i) - u(0,k,j-1,i) - u(0,k,j,i-1))
@@ -236,11 +236,11 @@ void MGGravity::Smooth(AthenaArray<Real> &u, const AthenaArray<Real> &src, int r
     }
   }
 
-// Jacobi
+// Jacobi solver for debugging
 /*  const Real isix = 1.0/7.0;
   static AthenaArray<Real> temp;
   if (!temp.IsAllocated())
-    temp.NewAthenaArray(1,18,18,18);
+    temp.NewAthenaArray(1,66,66,66);
   for (int k=kl; k<=ku; k++) {
     for (int j=jl; j<=ju; j++) {
       for (int i=il; i<=iu; i++)
@@ -275,19 +275,19 @@ void MGGravity::CalculateDefect(AthenaArray<Real> &def, const AthenaArray<Real> 
   Real idx2 = 1.0/SQR(dx);
   if (th == true && (ku-kl) >=  minth_) {
 #pragma omp parallel for num_threads(pmy_driver_->nthreads_)
-  for (int k=kl; k<=ku; k++) {
-    for (int j=jl; j<=ju; j++) {
+    for (int k=kl; k<=ku; k++) {
+      for (int j=jl; j<=ju; j++) {
 #pragma clang loop vectorize(assume_safety)
-      for (int i=il; i<=iu; i++)
-        def(0,k,j,i) = (6.0*u(0,k,j,i) - u(0,k+1,j,i) - u(0,k,j+1,i) - u(0,k,j,i+1)
-                       - u(0,k-1,j,i) - u(0,k,j-1,i) - u(0,k,j,i-1))*idx2
-                       + src(0,k,j,i);
+        for (int i=il; i<=iu; i++)
+          def(0,k,j,i) = (6.0*u(0,k,j,i) - u(0,k+1,j,i) - u(0,k,j+1,i) - u(0,k,j,i+1)
+                         - u(0,k-1,j,i) - u(0,k,j-1,i) - u(0,k,j,i-1))*idx2
+                         + src(0,k,j,i);
+      }
     }
-  }
   } else {
     for (int k=kl; k<=ku; k++) {
       for (int j=jl; j<=ju; j++) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
         for (int i=il; i<=iu; i++)
           def(0,k,j,i) = (6.0*u(0,k,j,i) - u(0,k+1,j,i) - u(0,k,j+1,i) - u(0,k,j,i+1)
                          - u(0,k-1,j,i) - u(0,k,j-1,i) - u(0,k,j,i-1))*idx2
@@ -315,18 +315,18 @@ void MGGravity::CalculateFASRHS(AthenaArray<Real> &src, const AthenaArray<Real> 
   Real idx2 = 1.0/SQR(dx);
   if (th == true && (ku-kl) >=  minth_) {
 #pragma omp parallel for num_threads(pmy_driver_->nthreads_)
-  for (int k=kl; k<=ku; k++) {
-    for (int j=jl; j<=ju; j++) {
+    for (int k=kl; k<=ku; k++) {
+      for (int j=jl; j<=ju; j++) {
 #pragma clang loop vectorize(assume_safety)
-      for (int i=il; i<=iu; i++)
-        src(0,k,j,i) -= (6.0*u(0,k,j,i) - u(0,k+1,j,i) - u(0,k,j+1,i) - u(0,k,j,i+1)
-                        - u(0,k-1,j,i) - u(0,k,j-1,i) - u(0,k,j,i-1))*idx2;
+        for (int i=il; i<=iu; i++)
+          src(0,k,j,i) -= (6.0*u(0,k,j,i) - u(0,k+1,j,i) - u(0,k,j+1,i) - u(0,k,j,i+1)
+                          - u(0,k-1,j,i) - u(0,k,j-1,i) - u(0,k,j,i-1))*idx2;
+      }
     }
-  }
   } else {
     for (int k=kl; k<=ku; k++) {
       for (int j=jl; j<=ju; j++) {
-#pragma omp simd
+#pragma clang loop vectorize(assume_safety)
         for (int i=il; i<=iu; i++)
           src(0,k,j,i) -= (6.0*u(0,k,j,i) - u(0,k+1,j,i) - u(0,k,j+1,i) - u(0,k,j,i+1)
                           - u(0,k-1,j,i) - u(0,k,j-1,i) - u(0,k,j,i-1))*idx2;
