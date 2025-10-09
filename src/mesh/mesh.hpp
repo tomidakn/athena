@@ -444,6 +444,10 @@ class Mesh {
   void EnrollOrbitalVelocityDerivative(int i, OrbitalVelocityFunc my_func);
   void SetGravitationalConstant(Real g) { four_pi_G_=4.0*PI*g; }
   void SetFourPiG(Real fpg) { four_pi_G_=fpg; }
+
+  // CC_MAGNETIC_FIELDS
+  Real mindx_;
+  void CalculateMinimumDX();
 };
 
 

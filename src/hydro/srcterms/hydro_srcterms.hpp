@@ -48,6 +48,9 @@ class HydroSourceTerms {
                  AthenaArray<Real> &c);
   void ConstantAcceleration(const Real dt, const AthenaArray<Real> *flx,
                             const AthenaArray<Real> &p, AthenaArray<Real> &c);
+  void HyperbolicDivergenceCleaning(const Real dt,  const AthenaArray<Real> *flx,
+                           const AthenaArray<Real> &p, AthenaArray<Real> &c);
+
   // shearing box src terms
   void ShearingBoxSourceTerms(const Real dt, const AthenaArray<Real> *flx,
                               const AthenaArray<Real> &p, AthenaArray<Real> &c);
@@ -70,5 +73,6 @@ class HydroSourceTerms {
   int  ShBoxCoord_;       // ShearCoordinate type: 1=xy (default), 2=xz
   bool flag_point_mass_;      // flag for calling PointMass function
   int  flag_shearing_source_; // 1=orbital advection, 2=shearing box, 3=rotating system
+  bool divbsrc_; // divB source term for the GLM MHD (additional source term)
 };
 #endif // HYDRO_SRCTERMS_HYDRO_SRCTERMS_HPP_

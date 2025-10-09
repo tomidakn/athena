@@ -94,6 +94,14 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin) :
               << " in some cases." << std::endl;
   }
 
+  if (CC_MAGNETIC_FIELDS_ENABLED && characteristic_projection) {
+    std::stringstream msg;
+    msg << "### FATAL ERROR in Reconstruction constructor" << std::endl
+        << "MHD with div B cleaning is incompatible with characteristic reconstruction."
+        << std::endl;
+    ATHENA_ERROR(msg);
+  }
+
   // check for necessary number of ghost zones for PPM w/o fourth-order flux corrections
   if (xorder == 3) {
     int req_nghost = 3;

@@ -141,7 +141,7 @@ struct EdgeField {
 // (not specifying underlying integral type (C++11) for portability & performance)
 
 //! \todo (felker):
-//! - C++ Core Guidelines Enum.5: Don’t use ALL_CAPS for enumerators
+//! - C++ Core Guidelines Enum.5: Don't use ALL_CAPS for enumerators
 //!   (avoid clashes with preprocessor macros).
 //! - Enumerated type definitions in this file and:
 //!   athena_fft.hpp, io_wrapper.hpp, bvals.hpp, hydro_diffusion.hpp, field_diffusion.hpp,
@@ -155,7 +155,8 @@ struct EdgeField {
 // explicitly specified enumerator values aare unnecessary, but provided for clarity:
 
 //! array indices for conserved: density, momemtum, total energy
-enum ConsIndex {IDN=0, IM1=1, IM2=2, IM3=3, IEN=4};
+enum ConsIndex {IDN=0, IM1=1, IM2=2, IM3=3, IEN=4, IBX1=5, IBX2=6, IBX3=7, IPS=8};
+
 //! array indices for face-centered field
 enum MagneticIndex {IB1=0, IB2=1, IB3=2};
 

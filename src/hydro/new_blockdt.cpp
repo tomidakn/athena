@@ -110,6 +110,27 @@ void Hydro::NewBlockTimeStep() {
               cf = pmb->peos->FastMagnetosonicSpeed(wi,bx);
               speed = std::max(cspeed,(std::abs(wi[IVZ]) + cf));
               dt3(i) /= (speed);
+            } else if (CC_MAGNETIC_FIELDS_ENABLED) {
+              wi[IBX1] = w(IBX1,k,j,i);
+              wi[IBX2] = w(IBX2,k,j,i);
+              wi[IBX3] = w(IBX3,k,j,i);
+              Real cf = pmb->peos->FastMagnetosonicSpeed(wi,wi[IBX1]);
+              Real speed = std::max(cspeed,(std::abs(wi[IVX]) + cf));
+              dt1(i) /= (speed);
+
+              wi[IBX1] = w(IBX2,k,j,i);
+              wi[IBX2] = w(IBX3,k,j,i);
+              wi[IBX3] = w(IBX1,k,j,i);
+              cf = pmb->peos->FastMagnetosonicSpeed(wi,wi[IBX1]);
+              speed = std::max(cspeed,(std::abs(wi[IVY]) + cf));
+              dt2(i) /= (speed);
+
+              wi[IBX1] = w(IBX3,k,j,i);
+              wi[IBX2] = w(IBX1,k,j,i);
+              wi[IBX3] = w(IBX2,k,j,i);
+              cf = pmb->peos->FastMagnetosonicSpeed(wi,wi[IBX1]);
+              speed = std::max(cspeed,(std::abs(wi[IVZ]) + cf));
+              dt3(i) /= (speed);
             } else {
               Real cs = pmb->peos->SoundSpeed(wi);
               Real speed1 = std::max(cspeed, (std::abs(wi[IVX]) + cs));

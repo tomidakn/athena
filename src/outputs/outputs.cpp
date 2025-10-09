@@ -1258,6 +1258,53 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     }
   } // endif (MAGNETIC_FIELDS_ENABLED)
 
+  if (CC_MAGNETIC_FIELDS_ENABLED) {
+    // vector of cell-centered magnetic field
+    if (ContainVariable(output_params.variable, "b") ||
+        ContainVariable(output_params.variable, "prim") ||
+        ContainVariable(output_params.variable, "cons")) {
+      pod = new OutputData;
+      pod->type = "VECTORS";
+      pod->name = "B";
+      pod->data.InitWithShallowSlice(phyd->u, 4, IBX1, 3);
+      AppendOutputDataNode(pod);
+      num_vars_ += 3;
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "PSI";
+      pod->data.InitWithShallowSlice(phyd->u, 4, IPS, 1);
+      AppendOutputDataNode(pod);
+      num_vars_ += 1;
+    }
+
+    // each component of cell-centered magnetic field
+    if (ContainVariable(output_params.variable, "b1")) {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "B1";
+      pod->data.InitWithShallowSlice(phyd->u, 4, IBX1, 1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+    if (ContainVariable(output_params.variable, "b2")) {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "B2";
+      pod->data.InitWithShallowSlice(phyd->u, 4, IBX2, 1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+    if (ContainVariable(output_params.variable, "b3")) {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "B3";
+      pod->data.InitWithShallowSlice(phyd->u, 4, IBX3, 1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+  } // endif (CC_MAGNETIC_FIELDS_ENABLED)
+
+
   bool output_all_uov = ContainVariable(output_params.variable, "uov")
                         || ContainVariable(output_params.variable, "user_out_var");
   for (int n = 0; n < pmb->nuser_out_var; ++n) {

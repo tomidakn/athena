@@ -913,6 +913,22 @@ void __attribute__((weak)) Coordinates::Metric(Real x1, Real x2, Real x3,
   return;
 }
 
+
+void Coordinates::CalculateBlockMinimumDX() {
+  mindx_ = dx1f(il);
+  for (int i = il+1; i <= iu; ++i)
+    mindx_ = std::min(dx1f(il), mindx_);
+  if (ju != jl) {
+    for (int j = jl; j <= ju; ++j)
+      mindx_ = std::min(dx2f(jl), mindx_);
+  }
+  if (ku != kl) {
+    for (int k = kl; k <= ku; ++k)
+      mindx_ = std::min(dx3f(kl), mindx_);
+  }
+}
+
+
 void __attribute__((weak)) Coordinates::CellMetric(const int k, const int j,
      const int il, const int iu, AthenaArray<Real> &g, AthenaArray<Real> &gi) {}
 void __attribute__((weak)) Coordinates::Face1Metric(const int k, const int j,

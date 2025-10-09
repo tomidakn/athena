@@ -32,6 +32,7 @@ class ParameterInput;
 class Hydro {
   friend class Field;
   friend class EquationOfState;
+  friend class HydroSourceTerms;
  public:
   Hydro(MeshBlock *pmb, ParameterInput *pin);
 
@@ -116,6 +117,9 @@ class Hydro {
   AthenaArray<Real> laplacian_l_fc_, laplacian_r_fc_;
 
   TimeStepFunc UserTimeStep_;
+
+  // Hyperbolic divergence cleaning
+  Real ch_, cr_, mindx_;
 
   void AddDiffusionFluxes();
   Real GetWeightForCT(Real dflx, Real rhol, Real rhor, Real dx, Real dt);

@@ -38,6 +38,7 @@ class ParameterInput;
 class Coordinates {
  public:
   friend class HydroSourceTerms;
+  friend class Mesh;
   Coordinates(MeshBlock *pmb, ParameterInput *pin, bool flag = false);
   ~Coordinates();
 
@@ -297,6 +298,10 @@ class Coordinates {
   // GR-specific variables
   Real bh_mass_;
   Real bh_spin_;
+
+  // CC_MAGNETIC_FIELDS
+  void CalculateBlockMinimumDX();
+  Real mindx_;
 };
 
 #endif // COORDINATES_COORDINATES_HPP_

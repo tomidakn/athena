@@ -106,6 +106,11 @@ HydroSourceTerms::HydroSourceTerms(Hydro *phyd, ParameterInput *pin) {
 
   if (SELF_GRAVITY_ENABLED) hydro_sourceterms_defined = true;
 
+  if (CC_MAGNETIC_FIELDS_ENABLED) {
+    hydro_sourceterms_defined = true;
+    divbsrc_ = pin->GetOrAddBoolean("time", "divb_src", false);
+  }
+
   UserSourceTerm = phyd->pmy_block->pmy_mesh->UserSourceTerm_;
   if (UserSourceTerm != nullptr) hydro_sourceterms_defined = true;
 }
@@ -149,6 +154,10 @@ void HydroSourceTerms::AddSourceTerms(const Real time, const Real dt,
     ShearingBoxSourceTerms(dt, flux, prim, cons);
   else if (flag_shearing_source_ == 3)
     RotatingSystemSourceTerms(dt, flux, prim, cons);
+
+  // Source term for hyperbolic divergence cleaning
+  if (CC_MAGNETIC_FIELDS_ENABLED)
+    HyperbolicDivergenceCleaning(dt, flux, prim, cons);
 
   // MyNewSourceTerms()
 

@@ -1250,7 +1250,7 @@ void Mesh::NewTimeStep() {
   dt_parabolic = pmb->new_block_dt_parabolic_;
   dt_user = pmb->new_block_dt_user_;
 
-  for (int i=0; i<nblocal; ++i) {
+  for (int i=1; i<nblocal; ++i) {
     pmb = my_blocks(i);
     dt = std::min(dt, pmb->new_block_dt_);
     dt_hyperbolic  = std::min(dt_hyperbolic, pmb->new_block_dt_hyperbolic_);
@@ -1960,9 +1960,14 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 #pragma omp parallel for num_threads(nthreads)
   for (int i=0; i<nblocal; ++i) {
     my_blocks(i)->phydro->NewBlockTimeStep();
+    if (CC_MAGNETIC_FIELDS_ENABLED)
+      my_blocks(i)->pcoord->CalculateBlockMinimumDX();
   }
 
   NewTimeStep();
+  if (CC_MAGNETIC_FIELDS_ENABLED)
+    CalculateMinimumDX();
+
   return;
 }
 
@@ -2336,3 +2341,16 @@ void Mesh::OutputCycleDiagnostics() {
   }
   return;
 }
+
+
+void Mesh::CalculateMinimumDX() {
+  mindx_ = my_blocks(0)->pcoord->mindx_;
+  for (int i=1; i<nblocal; ++i)
+    mindx_ = std::min(my_blocks(i)->pcoord->mindx_, mindx_);
+#ifdef MPI_PARALLEL
+  MPI_Allreduce(MPI_IN_PLACE, &mindx_, 1, MPI_ATHENA_REAL, MPI_MIN, MPI_COMM_WORLD);
+#endif
+
+  return;
+}
+

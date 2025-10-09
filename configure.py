@@ -17,6 +17,7 @@
 #   --nspecies=xxx    set NSPECIES=xxx
 #   -eos_table        enable EOS table
 #   -b                enable magnetic fields
+#   -dedner           enable magnetic fields using Dedner's scheme (deprecated)
 #   -s                enable special relativity
 #   -g                enable general relativity
 #   -t                enable interface frame transformations for GR
@@ -128,7 +129,13 @@ parser.add_argument('--nspecies',
 parser.add_argument('-b',
                     action='store_true',
                     default=False,
-                    help='enable magnetic field')
+                    help='enable magnetic fields')
+
+# -dedner argument
+parser.add_argument('-dedner',
+                    action='store_true',
+                    default=False,
+                    help='enable magnetic fields using divB cleaning (deprecated)')
 
 # -sts argument
 parser.add_argument('-sts',
@@ -365,7 +372,7 @@ args = vars(parser.parse_args())
 if args['flux'] == 'default':
     if args['g']:
         args['flux'] = 'hlle'
-    elif args['b']:
+    elif args['b'] or args['dedner']:
         args['flux'] = 'hlld'
     elif args['eos'] == 'isothermal':
         args['flux'] = 'hlle'
@@ -381,7 +388,7 @@ if args['flux'] == 'lhllc' and args['eos'] == 'isothermal':
     raise SystemExit('### CONFIGURE ERROR: LHLLC flux cannot be used with isothermal EOS') # noqa
 if args['flux'] == 'lhllc' and args['b']:
     raise SystemExit('### CONFIGURE ERROR: LHLLC flux cannot be used with MHD')
-if args['flux'] == 'hlld' and not args['b']:
+if args['flux'] == 'hlld' and not (args['b'] or args['dedner']):
     raise SystemExit('### CONFIGURE ERROR: HLLD flux can only be used with MHD')
 if args['flux'] == 'lhlld' and args['eos'] == 'isothermal':
     raise SystemExit('### CONFIGURE ERROR: LHLLD flux cannot be used with isothermal EOS') # noqa
@@ -484,6 +491,8 @@ definitions['NUMBER_PASSIVE_SCALARS'] = args['nscalars']
 # --nspecies=[value] argument
 definitions['NUMBER_CHEMICAL_SPECIES'] = args['nspecies']
 
+definitions['CC_MAGNETIC_FIELDS_ENABLED'] = '0'
+
 # -b argument
 # set variety of macros based on whether MHD/hydro or adi/iso are defined
 if args['b']:
@@ -515,12 +524,6 @@ else:
     else:
         definitions['NWAVE_VALUE'] = '5'
 
-# -sts argument
-if args['sts']:
-    definitions['STS_ENABLED'] = '1'
-else:
-    definitions['STS_ENABLED'] = '0'
-
 # -s, -g, and -t arguments
 definitions['RELATIVISTIC_DYNAMICS'] = '1' if args['s'] or args['g'] else '0'
 definitions['GENERAL_RELATIVITY'] = '1' if args['g'] else '0'
@@ -536,6 +539,43 @@ if args['g']:
     makefile_options['RSOLVER_FILE'] += '_rel'
     if not args['t']:
         makefile_options['RSOLVER_FILE'] += '_no_transform'
+
+# -dedner argument
+# set variety of macros for the Dedner's scheme
+if args['dedner']:
+    definitions['CC_MAGNETIC_FIELDS_ENABLED'] = '1'
+    if args['b']:
+        raise SystemExit(
+          '### CONFIGURE ERROR: To Enable MHD with div B cleaning, '
+          + 'specify the -dedner option only.')
+    if definitions['RELATIVISTIC_DYNAMICS'] != '0':
+        raise SystemExit(
+          '### CONFIGURE ERROR: MHD with div B cleaning is incompatible '
+          + 'with the relativitistic dynamics.')
+    if args['flux'] != 'hlle' and args['flux'] != 'hlld':
+        raise SystemExit(
+          '### CONFIGURE ERROR: MHD with div B cleaning supports '
+          + 'the HLLE or HLLD flux only.')
+    if definitions['GENERAL_EOS'] != '0':
+        raise SystemExit(
+          '### CONFIGURE ERROR: MHD with div B cleaning is incompatible '
+          + 'with the general equation-of-state.')
+    if args['eos'] == 'isothermal':
+        raise SystemExit(
+          '### CONFIGURE ERROR: MHD with div B cleaning is currently incompatible '
+          + 'with the isothermal equation-of-state.')
+    makefile_options['EOS_FILE'] += '_ccmhd'
+    makefile_options['RSOLVER_DIR'] = 'ccmhd/'
+    definitions['NHYDRO_VARIABLES'] = '9'
+    definitions['NWAVE_VALUE'] = '9'
+    makefile_options['RSOLVER_FILE'] += '_ccmhd'
+
+# -sts argument
+if args['sts']:
+    definitions['STS_ENABLED'] = '1'
+else:
+    definitions['STS_ENABLED'] = '0'
+
 
 
 # -radiation argument
@@ -1004,6 +1044,7 @@ output_config('Coordinate system', args['coord'], flog)
 output_config('Equation of state', args['eos'], flog)
 output_config('Riemann solver', args['flux'], flog)
 output_config('Magnetic fields', ('ON' if args['b'] else 'OFF'), flog)
+output_config('Dedner\'s MHD (deprecated)', ('ON' if args['dedner'] else 'OFF'), flog) #noqa
 output_config('Number of scalars', definitions['NUMBER_PASSIVE_SCALARS'], flog)
 output_config('Number of chemical species', definitions['NUMBER_CHEMICAL_SPECIES'], flog)
 output_config('Special relativity', ('ON' if args['s'] else 'OFF'), flog)

@@ -58,6 +58,11 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
   AthenaArray<Real> &flux_fc = scr1_nkji_;
   AthenaArray<Real> &laplacian_all_fc = scr2_nkji_;
 
+#if CC_MAGNETIC_FIELDS_ENABLED
+  mindx_ = pmb->pmy_mesh->mindx_;
+  ch_ = pmb->pmy_mesh->cfl_number/pmb->pmy_mesh->dt*mindx_;
+#endif
+
   //--------------------------------------------------------------------------------------
   // i-direction
 

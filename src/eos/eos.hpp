@@ -84,7 +84,8 @@ class EquationOfState {
   void ApplyPrimitiveConservedFloors(
       AthenaArray<Real> &prim, AthenaArray<Real> &cons, AthenaArray<Real> &bcc,
       int k, int j, int i);
-#if !MAGNETIC_FIELDS_ENABLED  // Newtonian hydro: Newtonian MHD defined as no-op
+// Newtonian hydro: Newtonian MHD defined as no-op
+#if !(MAGNETIC_FIELDS_ENABLED || CC_MAGNETIC_FIELDS_ENABLED)
   Real FastMagnetosonicSpeed(const Real[], const Real) {return 0.0;}
 #else  // Newtonian MHD
 #pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this)

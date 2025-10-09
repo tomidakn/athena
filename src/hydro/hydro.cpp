@@ -145,6 +145,9 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   }
 
   UserTimeStep_ = pmb->pmy_mesh->UserTimeStep_;
+
+  if (CC_MAGNETIC_FIELDS_ENABLED)
+    cr_ = pin->GetOrAddReal("time", "dedner_cr", 0.18);
 }
 
 //----------------------------------------------------------------------------------------
@@ -156,3 +159,4 @@ Real Hydro::GetWeightForCT(Real dflx, Real rhol, Real rhor, Real dx, Real dt) {
   Real tmp_min = std::min(static_cast<Real>(0.5), v_over_c);
   return 0.5 + std::max(static_cast<Real>(-0.5), tmp_min);
 }
+
