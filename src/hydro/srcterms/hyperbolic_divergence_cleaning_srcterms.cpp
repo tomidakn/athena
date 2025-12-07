@@ -45,12 +45,12 @@ void HydroSourceTerms::HyperbolicDivergenceCleaning(const Real dt,
     Real dtoch2 = dt / SQR(ch);
     if (pmb->block_size.nx3 > 1) { // 3D
       for (int k = pmb->ks; k <= pmb->ke; ++k) {
-        Real idz = 1.0 / pco->x3f(k);
+        Real idz = 1.0 / pco->dx3f(k);
         for (int j = pmb->js; j <= pmb->je; ++j) {
-          Real idy = 1.0 / pco->x2f(j);
+          Real idy = 1.0 / pco->dx2f(j);
 #pragma omp simd
           for (int i = pmb->is; i <= pmb->ie; ++i) {
-            Real idx = 1.0 / pco->x1f(i);
+            Real idx = 1.0 / pco->dx1f(i);
             Real divBdt = ((x1flux(IPS,k,  j,  i+1) - x1flux(IPS,k,j,i)) * idx
                          + (x2flux(IPS,k,  j+1,i)   - x2flux(IPS,k,j,i)) * idy
                          + (x3flux(IPS,k+1,j,  i)   - x3flux(IPS,k,j,i)) * idz)
@@ -62,21 +62,27 @@ void HydroSourceTerms::HyperbolicDivergenceCleaning(const Real dt,
             cons(IBX2,k,j,i) -= divBdt*prim(IVY,k,j,i);
             cons(IBX3,k,j,i) -= divBdt*prim(IVZ,k,j,i);
             cons(IPS,k,j,i) *= df;
-            if (NON_BAROTROPIC_EOS)
+            if (NON_BAROTROPIC_EOS) {
               cons(IEN,k,j,i) -= divBdt
                               * (prim(IBX1,k,j,i) * prim(IVX,k,j,i)
                                + prim(IBX2,k,j,i) * prim(IVY,k,j,i)
                                + prim(IBX3,k,j,i) * prim(IVZ,k,j,i));
+              if (eglm_)
+                cons(IEN,k,j,i) -= dt *
+                  (prim(IBX1,k,j,i)*(x1flux(IBX1,k,  j,  i+1)-x1flux(IBX1,k,j,i))*idx
+                 + prim(IBX2,k,j,i)*(x2flux(IBX2,k,  j+1,i)  -x2flux(IBX2,k,j,i))*idy
+                 + prim(IBX3,k,j,i)*(x3flux(IBX3,k+1,j,  i)  -x3flux(IBX3,k,j,i))*idz);
+            }
           }
         }
       }
     } else if (pmb->block_size.nx2 > 1) {
       int k = pmb->ks;
       for (int j = pmb->js; j <= pmb->je; ++j) {
-        Real idy = 1.0 / pco->x2f(j);
+        Real idy = 1.0 / pco->dx2f(j);
 #pragma omp simd
         for (int i = pmb->is; i <= pmb->ie; ++i) {
-          Real idx = 1.0 / pco->x1f(i);
+          Real idx = 1.0 / pco->dx1f(i);
           Real divBdt = ((x1flux(IPS,k,  j,  i+1) - x1flux(IPS,k,j,i)) * idx
                        + (x2flux(IPS,k,  j+1,i)   - x2flux(IPS,k,j,i)) * idy) * dtoch2;
           cons(IM1,k,j,i) -= divBdt*prim(IBX1,k,j,i);
@@ -86,18 +92,23 @@ void HydroSourceTerms::HyperbolicDivergenceCleaning(const Real dt,
           cons(IBX2,k,j,i) -= divBdt*prim(IVY,k,j,i);
           cons(IBX3,k,j,i) -= divBdt*prim(IVZ,k,j,i);
           cons(IPS,k,j,i) *= df;
-          if (NON_BAROTROPIC_EOS)
+          if (NON_BAROTROPIC_EOS) {
             cons(IEN,k,j,i) -= divBdt
                             * (prim(IBX1,k,j,i) * prim(IVX,k,j,i)
                              + prim(IBX2,k,j,i) * prim(IVY,k,j,i)
                              + prim(IBX3,k,j,i) * prim(IVZ,k,j,i));
+            if (eglm_)
+              cons(IEN,k,j,i) -= dt *
+                (prim(IBX1,k,j,i)*(x1flux(IBX1,k,  j,  i+1)-x1flux(IBX1,k,j,i))*idx
+               + prim(IBX2,k,j,i)*(x2flux(IBX2,k,  j+1,i)  -x2flux(IBX2,k,j,i))*idy);
+          }
         }
       }
     } else { // 1D
       int k = pmb->ks, j = pmb->js;
 #pragma omp simd
       for (int i = pmb->is; i <= pmb->ie; ++i) {
-        Real idx = 1.0 / pco->x1f(i);
+        Real idx = 1.0 / pco->dx1f(i);
         Real divBdt = ((x1flux(IPS,k,  j,  i+1) - x1flux(IPS,k,j,i)) * idx) * dtoch2;
         cons(IM1,k,j,i) -= divBdt*prim(IBX1,k,j,i);
         cons(IM2,k,j,i) -= divBdt*prim(IBX2,k,j,i);
@@ -106,19 +117,59 @@ void HydroSourceTerms::HyperbolicDivergenceCleaning(const Real dt,
         cons(IBX2,k,j,i) -= divBdt*prim(IVY,k,j,i);
         cons(IBX3,k,j,i) -= divBdt*prim(IVZ,k,j,i);
         cons(IPS,k,j,i) *= df;
-        if (NON_BAROTROPIC_EOS)
+        if (NON_BAROTROPIC_EOS) {
           cons(IEN,k,j,i) -= divBdt
                           * (prim(IBX1,k,j,i) * prim(IVX,k,j,i)
                            + prim(IBX2,k,j,i) * prim(IVY,k,j,i)
                            + prim(IBX3,k,j,i) * prim(IVZ,k,j,i));
+          if (eglm_)
+            cons(IEN,k,j,i) -= dt *
+            (prim(IBX1,k,j,i)*(x1flux(IBX1,k,  j,  i+1)-x1flux(IBX1,k,j,i))*idx);
+
+        }
       }
     }
   } else {
-    for (int k = pmb->ks; k <= pmb->ke; ++k) {
-      for (int j = pmb->js; j <= pmb->je; ++j) {
+    if (pmb->block_size.nx3 > 1) { // 3D
+      for (int k = pmb->ks; k <= pmb->ke; ++k) {
+        Real idz = 1.0 / pco->dx3f(k);
+        for (int j = pmb->js; j <= pmb->je; ++j) {
+          Real idy = 1.0 / pco->dx2f(j);
 #pragma omp simd
-        for (int i = pmb->is; i <= pmb->ie; ++i)
+          for (int i = pmb->is; i <= pmb->ie; ++i) {
+            Real idx = 1.0 / pco->dx1f(i);
+            cons(IPS,k,j,i) *= df;
+            if (NON_BAROTROPIC_EOS && eglm_)
+              cons(IEN,k,j,i) -= dt *
+                (prim(IBX1,k,j,i)*(x1flux(IBX1,k,  j,  i+1)-x1flux(IBX1,k,j,i))*idx
+               + prim(IBX2,k,j,i)*(x2flux(IBX2,k,  j+1,i)  -x2flux(IBX2,k,j,i))*idy
+               + prim(IBX3,k,j,i)*(x3flux(IBX3,k+1,j,  i)  -x3flux(IBX3,k,j,i))*idz);
+          }
+        }
+      }
+    } else if (pmb->block_size.nx2 > 1) { // 2D
+      int k = pmb->ks;
+      for (int j = pmb->js; j <= pmb->je; ++j) {
+        Real idy = 1.0 / pco->dx2f(j);
+#pragma omp simd
+        for (int i = pmb->is; i <= pmb->ie; ++i) {
+          Real idx = 1.0 / pco->dx1f(i);
           cons(IPS,k,j,i) *= df;
+          if (NON_BAROTROPIC_EOS && eglm_)
+            cons(IEN,k,j,i) -= dt *
+              (prim(IBX1,k,j,i)*(x1flux(IBX1,k,j,  i+1)-x1flux(IBX1,k,j,i))*idx
+             + prim(IBX2,k,j,i)*(x2flux(IBX2,k,j+1,i)  -x2flux(IBX2,k,j,i))*idy);
+        }
+      }
+    } else { // 1D
+      int k = pmb->ks, j = pmb->js;
+#pragma omp simd
+      for (int i = pmb->is; i <= pmb->ie; ++i) {
+        Real idx = 1.0 / pco->dx1f(i);
+        cons(IPS,k,j,i) *= df;
+        if (NON_BAROTROPIC_EOS && eglm_)
+          cons(IEN,k,j,i) -= dt *
+            (prim(IBX1,k,j,i)*(x1flux(IBX1,k,  j,  i+1)-x1flux(IBX1,k,j,i))*idx);
       }
     }
   }

@@ -109,6 +109,7 @@ HydroSourceTerms::HydroSourceTerms(Hydro *phyd, ParameterInput *pin) {
   if (CC_MAGNETIC_FIELDS_ENABLED) {
     hydro_sourceterms_defined = true;
     divbsrc_ = pin->GetOrAddBoolean("time", "divb_src", false);
+    eglm_ = pin->GetOrAddBoolean("time", "eglm", false);
   }
 
   UserSourceTerm = phyd->pmy_block->pmy_mesh->UserSourceTerm_;
