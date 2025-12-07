@@ -33,10 +33,11 @@ void HydroSourceTerms::HyperbolicDivergenceCleaning(const Real dt,
   const AthenaArray<Real> &x1flux = flx[X1DIR];
   const AthenaArray<Real> &x2flux = flx[X2DIR];
   const AthenaArray<Real> &x3flux = flx[X3DIR];
-  Real ch = -pmy_hydro_->ch_;
+  Real ch = pmy_hydro_->ch_;
 
   // assuming L = 1
   Real df = std::exp(-ch/pmy_hydro_->cr_*dt);
+  std::cout << "[DEBUG] "<< df << std::endl;
   // assuming L = dx
   //   Real df = std::exp(-ch/(pmy_hydro_->cr_*pmy_hydro_->mindx_)*dt);
 
