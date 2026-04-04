@@ -146,8 +146,12 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
 
   UserTimeStep_ = pmb->pmy_mesh->UserTimeStep_;
 
-  if (CC_MAGNETIC_FIELDS_ENABLED)
+  if (CC_MAGNETIC_FIELDS_ENABLED) {
     cr_ = pin->GetOrAddReal("time", "dedner_cr", 0.18);
+    ch_ = pin->GetOrAddReal("time", "dedner_ch", -1.0);
+    if (ch_ <= 0.0)
+      variable_ch_ = true;
+  }
 }
 
 //----------------------------------------------------------------------------------------

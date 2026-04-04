@@ -60,7 +60,8 @@ void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
 
 #if CC_MAGNETIC_FIELDS_ENABLED
   mindx_ = pmb->pmy_mesh->mindx_;
-  ch_ = pmb->pmy_mesh->cfl_number/pmb->pmy_mesh->dt*mindx_;
+  if (variable_ch_)
+    ch_ = pmb->pmy_mesh->cfl_number/pmb->pmy_mesh->dt*mindx_;
 #endif
 
   //--------------------------------------------------------------------------------------

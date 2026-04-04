@@ -14,6 +14,7 @@
 //!   - iprob=5: two resolved slip-surfaces with m=2 perturbation for the AMR test
 
 // C headers
+#include <stdio.h>
 
 // C++ headers
 #include <algorithm>  // min, max
@@ -35,8 +36,9 @@
 
 namespace {
 Real vflow;
-int iprob;
+int iprob, nsbeg, nsend;
 Real PassiveDyeEntropy(MeshBlock *pmb, int iout);
+Real MyTimeStep(MeshBlock *pmb);
 } // namespace
 
 Real threshold;
@@ -51,6 +53,8 @@ int RefinementCondition(MeshBlock *pmb);
 void Mesh::InitUserMeshData(ParameterInput *pin) {
   vflow = pin->GetReal("problem","vflow");
   iprob = pin->GetInteger("problem","iprob");
+  nsbeg = pin->GetOrAddInteger("problem","nsbeg",-1);
+  nsend = pin->GetOrAddInteger("problem","nsend",-1);
 
   if (adaptive) {
     threshold = pin->GetReal("problem", "thr");
@@ -60,6 +64,9 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
     AllocateUserHistoryOutput(1);
     EnrollUserHistoryOutput(0, PassiveDyeEntropy, "tot-S");
   }
+
+  if (nsbeg > 0 && nsend >=0)
+    EnrollUserTimeStepFunction(MyTimeStep);
   return;
 }
 
@@ -708,6 +715,215 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     }
   }
 
+  if (iprob == 7) { // one shear, non-uniform B
+    // Read/set problem parameters
+    Real amp = pin->GetReal("problem","amp");
+    // unstratified problem is the default
+    Real drho_rho0 = pin->GetOrAddReal("problem", "drho_rho0", 0.0);
+    // set background vx to nonzero to evolve the KHI in a moving frame
+    Real vboost = pin->GetOrAddReal("problem", "vboost", 0.0);
+    Real P0 = 10.0;
+    Real a = 0.05;
+    Real sigma = pin->GetOrAddReal("problem","sigma", 0.2);
+    Real sigma2 = pin->GetOrAddReal("problem","sigma2", 0.5);
+    // Initial condition's reflect-and-shift symmetry, x1-> x1 + 1/2, x2-> -x2
+    // is preserved in new coordinates; hence, the same flow is solved twice in this prob.
+
+    for (int k=ks; k<=ke; k++) {
+      for (int j=js; j<=je; j++) {
+        for (int i=is; i<=ie; i++) {
+          // Lecoanet (2015) equation 8a)
+          Real dens = 1.0 + 0.5*drho_rho0*(std::tanh((pcoord->x2v(j))/a));
+          phydro->u(IDN,k,j,i) = dens;
+
+          Real v1 = vflow*(std::tanh((pcoord->x2v(j))/a)) + vboost;
+          // Currently, the midpoint approx. is applied in the momenta and energy calc
+          phydro->u(IM1,k,j,i) = v1*dens;
+
+
+          Real ave_sine = std::sin(TWO_PI*pcoord->x1v(i));
+
+          // translated x1= x - 1/2 relative to Lecoanet (2015) shifts sine function by pi
+          // (half-period) and introduces U_z sign change:
+          Real v2 = -amp*ave_sine*std::exp(-(SQR(pcoord->x2v(j)))/(sigma*sigma));
+          phydro->u(IM2,k,j,i) = v2*dens;
+
+          phydro->u(IM3,k,j,i) = 0.0;
+          if (NON_BAROTROPIC_EOS) {
+            phydro->u(IEN,k,j,i) = P0/gm1 + 0.5*(SQR(phydro->u(IM1,k,j,i))
+                                                 + SQR(phydro->u(IM2,k,j,i))
+                                                 + SQR(phydro->u(IM3,k,j,i)) )
+                                   /phydro->u(IDN,k,j,i);
+          }
+          // color concentration of passive scalar
+          if (NSCALARS > 0) {
+            Real concentration = 0.5*(std::tanh((pcoord->x2v(j))/a)+2.0);
+            // uniformly fill all scalar species to have equal concentration
+            constexpr int scalar_norm = NSCALARS > 0 ? NSCALARS : 1.0;
+            for (int n=0; n<NSCALARS; ++n) {
+              pscalars->s(n,k,j,i) = 1.0/scalar_norm*concentration*phydro->u(IDN,k,j,i);
+            }
+          }
+        }
+      }
+    }
+    // initialize uniform interface B
+    if (MAGNETIC_FIELDS_ENABLED) {
+      Real b0 = pin->GetReal("problem", "b0");
+//      b0 = b0/std::sqrt(4.0*(PI));
+      for (int k=ks; k<=ke; k++) {
+        for (int j=js; j<=je; j++) {
+          for (int i=is; i<=ie+1; i++) {
+            pfield->b.x1f(k,j,i) = b0*std::exp(-(SQR(pcoord->x2v(j)))/(sigma2*sigma2))+1e-30;
+          }
+        }
+      }
+      for (int k=ks; k<=ke; k++) {
+        for (int j=js; j<=je+1; j++) {
+          for (int i=is; i<=ie; i++) {
+            pfield->b.x2f(k,j,i) = 0.0;
+          }
+        }
+      }
+      for (int k=ks; k<=ke+1; k++) {
+        for (int j=js; j<=je; j++) {
+          for (int i=is; i<=ie; i++) {
+            pfield->b.x3f(k,j,i) = 0.0;
+          }
+        }
+      }
+      if (NON_BAROTROPIC_EOS) {
+        for (int k=ks; k<=ke; k++) {
+          for (int j=js; j<=je; j++) {
+            for (int i=is; i<=ie; i++) {
+              phydro->u(IEN,k,j,i) += 0.5*SQR(pfield->b.x1f(k,j,i));
+            }
+          }
+        }
+      }
+    } else if (CC_MAGNETIC_FIELDS_ENABLED) {
+      Real b0 = pin->GetReal("problem", "b0");
+//      b0 = b0/std::sqrt(4.0*(PI));
+      for (int k=ks; k<=ke; k++) {
+        for (int j=js; j<=je; j++) {
+          for (int i=is; i<=ie; i++) {
+            phydro->u(IBX1,k,j,i) = b0*std::exp(-(SQR(pcoord->x2v(j)))/(sigma2*sigma2))+1e-30;
+            phydro->u(IBX2,k,j,i) = 0.0;
+            phydro->u(IBX3,k,j,i) = 0.0;
+            phydro->u(IPS,k,j,i) = 0.0;
+            if (NON_BAROTROPIC_EOS)
+              phydro->u(IEN,k,j,i) += 0.5*SQR(phydro->u(IBX1,k,j,i));
+          }
+        }
+      }
+    }
+  }
+
+  if (iprob == 8) { // one shear, uniform B
+    // Read/set problem parameters
+    Real amp = pin->GetReal("problem","amp");
+    // unstratified problem is the default
+    Real drho_rho0 = pin->GetOrAddReal("problem", "drho_rho0", 0.0);
+    // set background vx to nonzero to evolve the KHI in a moving frame
+    Real vboost = pin->GetOrAddReal("problem", "vboost", 0.0);
+    Real P0 = 10.0;
+    Real a = 0.05;
+    Real sigma = pin->GetOrAddReal("problem","sigma", 0.2);
+    Real sigma2 = pin->GetOrAddReal("problem","sigma2", 0.5);
+    // Initial condition's reflect-and-shift symmetry, x1-> x1 + 1/2, x2-> -x2
+    // is preserved in new coordinates; hence, the same flow is solved twice in this prob.
+
+    for (int k=ks; k<=ke; k++) {
+      for (int j=js; j<=je; j++) {
+        for (int i=is; i<=ie; i++) {
+          // Lecoanet (2015) equation 8a)
+          Real dens = 1.0 + 0.5*drho_rho0*(std::tanh((pcoord->x2v(j))/a));
+          phydro->u(IDN,k,j,i) = dens;
+
+          Real v1 = vflow*(std::tanh((pcoord->x2v(j))/a)) + vboost;
+          // Currently, the midpoint approx. is applied in the momenta and energy calc
+          phydro->u(IM1,k,j,i) = v1*dens;
+
+
+          Real ave_sine = std::sin(TWO_PI*pcoord->x1v(i));
+
+          // translated x1= x - 1/2 relative to Lecoanet (2015) shifts sine function by pi
+          // (half-period) and introduces U_z sign change:
+          Real v2 = -amp*ave_sine*std::exp(-(SQR(pcoord->x2v(j)))/(sigma*sigma));
+          phydro->u(IM2,k,j,i) = v2*dens;
+
+          phydro->u(IM3,k,j,i) = 0.0;
+          if (NON_BAROTROPIC_EOS) {
+            phydro->u(IEN,k,j,i) = P0/gm1 + 0.5*(SQR(phydro->u(IM1,k,j,i))
+                                                 + SQR(phydro->u(IM2,k,j,i))
+                                                 + SQR(phydro->u(IM3,k,j,i)) )
+                                   /phydro->u(IDN,k,j,i);
+          }
+          // color concentration of passive scalar
+          if (NSCALARS > 0) {
+            Real concentration = 0.5*(std::tanh((pcoord->x2v(j))/a)+2.0);
+            // uniformly fill all scalar species to have equal concentration
+            constexpr int scalar_norm = NSCALARS > 0 ? NSCALARS : 1.0;
+            for (int n=0; n<NSCALARS; ++n) {
+              pscalars->s(n,k,j,i) = 1.0/scalar_norm*concentration*phydro->u(IDN,k,j,i);
+            }
+          }
+        }
+      }
+    }
+    // initialize uniform interface B
+    if (MAGNETIC_FIELDS_ENABLED) {
+      Real b0 = pin->GetReal("problem", "b0");
+//      b0 = b0/std::sqrt(4.0*(PI));
+      for (int k=ks; k<=ke; k++) {
+        for (int j=js; j<=je; j++) {
+          for (int i=is; i<=ie+1; i++) {
+            pfield->b.x1f(k,j,i) = b0;
+          }
+        }
+      }
+      for (int k=ks; k<=ke; k++) {
+        for (int j=js; j<=je+1; j++) {
+          for (int i=is; i<=ie; i++) {
+            pfield->b.x2f(k,j,i) = 0.0;
+          }
+        }
+      }
+      for (int k=ks; k<=ke+1; k++) {
+        for (int j=js; j<=je; j++) {
+          for (int i=is; i<=ie; i++) {
+            pfield->b.x3f(k,j,i) = 0.0;
+          }
+        }
+      }
+      if (NON_BAROTROPIC_EOS) {
+        for (int k=ks; k<=ke; k++) {
+          for (int j=js; j<=je; j++) {
+            for (int i=is; i<=ie; i++) {
+              phydro->u(IEN,k,j,i) += 0.5*b0*b0;
+            }
+          }
+        }
+      }
+    } else if (CC_MAGNETIC_FIELDS_ENABLED) {
+      Real b0 = pin->GetReal("problem", "b0");
+//      b0 = b0/std::sqrt(4.0*(PI));
+      for (int k=ks; k<=ke; k++) {
+        for (int j=js; j<=je; j++) {
+          for (int i=is; i<=ie; i++) {
+            phydro->u(IBX1,k,j,i) = b0;
+            phydro->u(IBX2,k,j,i) = 0.0;
+            phydro->u(IBX3,k,j,i) = 0.0;
+            phydro->u(IPS,k,j,i) = 0.0;
+            if (NON_BAROTROPIC_EOS)
+              phydro->u(IEN,k,j,i) += 0.5*b0*b0;
+          }
+        }
+      }
+    }
+  }
+
+
   return;
 }
 
@@ -732,6 +948,26 @@ int RefinementCondition(MeshBlock *pmb) {
   return 0;
 }
 
+void MeshBlock::UserWorkInLoop() {
+  // do nothing
+  if (CC_MAGNETIC_FIELDS_ENABLED) {
+    Real psi = 0.0;
+    for (int k=ks; k<=ke; k++) {
+      for (int j=js; j<=je; j++) {
+        for (int i=is; i<=ie; i++) {
+          psi = std::max(psi, std::abs(phydro->u(IPS,k,j,i)));
+        }
+      }
+    }
+    FILE *fp = fopen("psimax.dat", "a");
+    fprintf(fp, "%g %g\n", pmy_mesh->time, psi);
+    fclose(fp);
+  }
+
+  return;
+}
+
+
 namespace {
 Real PassiveDyeEntropy(MeshBlock *pmb, int iout) {
   Real total_entropy = 0;
@@ -754,4 +990,13 @@ Real PassiveDyeEntropy(MeshBlock *pmb, int iout) {
   }
   return total_entropy;
 }
+
+
+Real MyTimeStep(MeshBlock *pmb)
+{
+  if (pmb->pmy_mesh->ncycle >= nsbeg && pmb->pmy_mesh->ncycle < nsend)
+    return 1e-5;
+  return 1.0;
+}
+
 } // namespace

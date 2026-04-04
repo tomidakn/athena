@@ -73,6 +73,6 @@ class HydroSourceTerms {
   int  ShBoxCoord_;       // ShearCoordinate type: 1=xy (default), 2=xz
   bool flag_point_mass_;      // flag for calling PointMass function
   int  flag_shearing_source_; // 1=orbital advection, 2=shearing box, 3=rotating system
-  bool divbsrc_, eglm_; // source term flags for the GLM MHD
+  bool glmmode_, divbsrc_, eglm_; // source term flags for the GLM MHD
 };
 #endif // HYDRO_SRCTERMS_HYDRO_SRCTERMS_HPP_

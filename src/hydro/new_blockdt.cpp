@@ -116,6 +116,7 @@ void Hydro::NewBlockTimeStep() {
               wi[IBX3] = w(IBX3,k,j,i);
               Real cf = pmb->peos->FastMagnetosonicSpeed(wi,wi[IBX1]);
               Real speed = std::max(cspeed,(std::abs(wi[IVX]) + cf));
+              if (!variable_ch_) speed += ch_;
               dt1(i) /= (speed);
 
               wi[IBX1] = w(IBX2,k,j,i);
@@ -123,6 +124,7 @@ void Hydro::NewBlockTimeStep() {
               wi[IBX3] = w(IBX1,k,j,i);
               cf = pmb->peos->FastMagnetosonicSpeed(wi,wi[IBX1]);
               speed = std::max(cspeed,(std::abs(wi[IVY]) + cf));
+              if (!variable_ch_) speed += ch_;
               dt2(i) /= (speed);
 
               wi[IBX1] = w(IBX3,k,j,i);
@@ -130,6 +132,7 @@ void Hydro::NewBlockTimeStep() {
               wi[IBX3] = w(IBX2,k,j,i);
               cf = pmb->peos->FastMagnetosonicSpeed(wi,wi[IBX1]);
               speed = std::max(cspeed,(std::abs(wi[IVZ]) + cf));
+              if (!variable_ch_) speed += ch_;
               dt3(i) /= (speed);
             } else {
               Real cs = pmb->peos->SoundSpeed(wi);

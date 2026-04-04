@@ -120,6 +120,7 @@ class Hydro {
 
   // Hyperbolic divergence cleaning
   Real ch_, cr_, mindx_;
+  bool variable_ch_;
 
   void AddDiffusionFluxes();
   Real GetWeightForCT(Real dflx, Real rhol, Real rhor, Real dx, Real dt);

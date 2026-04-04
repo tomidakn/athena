@@ -33,13 +33,12 @@ void HydroSourceTerms::HyperbolicDivergenceCleaning(const Real dt,
   const AthenaArray<Real> &x1flux = flx[X1DIR];
   const AthenaArray<Real> &x2flux = flx[X2DIR];
   const AthenaArray<Real> &x3flux = flx[X3DIR];
-  Real ch = pmy_hydro_->ch_;
+  Real ch = pmy_hydro_->ch_, l=1.0;
+  Real df;
 
-  // assuming L = 1
-  Real df = std::exp(-ch/pmy_hydro_->cr_*dt);
-  std::cout << "[DEBUG] "<< df << std::endl;
-  // assuming L = dx
-  //   Real df = std::exp(-ch/(pmy_hydro_->cr_*pmy_hydro_->mindx_)*dt);
+  if (glmmode_ == true)
+    l = pmy_hydro_->mindx_;
+  df = std::exp(-ch/(pmy_hydro_->cr_*l)*dt);
 
   // assuming Cartesian
   if (divbsrc_) {
@@ -92,7 +91,7 @@ void HydroSourceTerms::HyperbolicDivergenceCleaning(const Real dt,
           cons(IBX1,k,j,i) -= divBdt*prim(IVX,k,j,i);
           cons(IBX2,k,j,i) -= divBdt*prim(IVY,k,j,i);
           cons(IBX3,k,j,i) -= divBdt*prim(IVZ,k,j,i);
-          cons(IPS,k,j,i) *= df;
+          cons(IPS,k,j,i) /= (1.0+0.4/0.18);
           if (NON_BAROTROPIC_EOS) {
             cons(IEN,k,j,i) -= divBdt
                             * (prim(IBX1,k,j,i) * prim(IVX,k,j,i)
