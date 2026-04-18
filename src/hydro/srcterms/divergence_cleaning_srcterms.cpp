@@ -147,7 +147,7 @@ void HydroSourceTerms::HyperbolicDivergenceCleaning(const Real dt,
                  + prim(IBX2,k,j,i)*(x2flux(IBX2,k,  j+1,i)  -x2flux(IBX2,k,j,i))*idy
                  + prim(IBX3,k,j,i)*(x3flux(IBX3,k+1,j,  i)  -x3flux(IBX3,k,j,i))*idz);
               if (fde)
-                cons(IEN,k,j,i) -= (1.0 - df*df)*SQR(cons(IPS,k,j,i))/SQR(ch);
+                cons(IEN,k,j,i) -= 0.5*(1.0 - df*df)*SQR(cons(IPS,k,j,i))/SQR(ch);
             }
             cons(IPS,k,j,i) *= df;
           }
@@ -166,7 +166,7 @@ void HydroSourceTerms::HyperbolicDivergenceCleaning(const Real dt,
                 (prim(IBX1,k,j,i)*(x1flux(IBX1,k,j,  i+1)-x1flux(IBX1,k,j,i))*idx
                + prim(IBX2,k,j,i)*(x2flux(IBX2,k,j+1,i)  -x2flux(IBX2,k,j,i))*idy);
             if (fde)
-              cons(IEN,k,j,i) -= (1.0 - df*df)*SQR(cons(IPS,k,j,i))/SQR(ch);
+              cons(IEN,k,j,i) -= 0.5*(1.0 - df*df)*SQR(cons(IPS,k,j,i))/SQR(ch);
           }
           cons(IPS,k,j,i) *= df;
         }
@@ -182,7 +182,7 @@ void HydroSourceTerms::HyperbolicDivergenceCleaning(const Real dt,
             cons(IEN,k,j,i) -= dt *
               (prim(IBX1,k,j,i)*(x1flux(IBX1,k,  j,  i+1)-x1flux(IBX1,k,j,i))*idx);
           if (fde)
-            cons(IEN,k,j,i) -= (1.0 - df*df)*SQR(cons(IPS,k,j,i))/SQR(ch);
+            cons(IEN,k,j,i) -= 0.5*(1.0 - df*df)*SQR(cons(IPS,k,j,i))/SQR(ch);
         }
       }
     }
