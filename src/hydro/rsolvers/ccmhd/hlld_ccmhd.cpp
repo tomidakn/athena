@@ -359,8 +359,11 @@ void Hydro::RiemannSolver(const int k, const int j, const int il, const int iu,
     flx(ibz,k,j,i) = flxi[IBX3];
 
     // hyperbolic divergence cleaning
-    flx(ibx,k,j,i) = 0.5*(wli[IPS] + wri[IPS] - (wri[IBX1] - wli[IBX1])*ch_);
+    Real psi = 0.5*(wli[IPS] + wri[IPS] - (wri[IBX1] - wli[IBX1])*ch_);
+    flx(ibx,k,j,i) = psi;
     flx(IPS,k,j,i) = bxi*SQR(ch_);
+    if (dedner_energy_)
+      flx(IEN,k,j,i) += bxi*psi;
   }
   return;
 }

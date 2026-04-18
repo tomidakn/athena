@@ -722,7 +722,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     Real drho_rho0 = pin->GetOrAddReal("problem", "drho_rho0", 0.0);
     // set background vx to nonzero to evolve the KHI in a moving frame
     Real vboost = pin->GetOrAddReal("problem", "vboost", 0.0);
-    Real P0 = 10.0;
+    Real P0 = pin->GetOrAddReal("problem", "pressure", 10.0);;
     Real a = 0.05;
     Real sigma = pin->GetOrAddReal("problem","sigma", 0.2);
     Real sigma2 = pin->GetOrAddReal("problem","sigma2", 0.5);

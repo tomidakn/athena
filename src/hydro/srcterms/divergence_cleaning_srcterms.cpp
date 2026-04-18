@@ -33,8 +33,10 @@ void HydroSourceTerms::HyperbolicDivergenceCleaning(const Real dt,
   const AthenaArray<Real> &x1flux = flx[X1DIR];
   const AthenaArray<Real> &x2flux = flx[X2DIR];
   const AthenaArray<Real> &x3flux = flx[X3DIR];
-  Real ch = pmy_hydro_->ch_, l=1.0;
+  const Real ch = pmy_hydro_->ch_;
+  Real l=1.0;
   Real df;
+  const bool &fde = pmy_hydro_->dedner_energy_;
 
   if (glmmode_ == true)
     l = pmy_hydro_->mindx_;
@@ -138,12 +140,16 @@ void HydroSourceTerms::HyperbolicDivergenceCleaning(const Real dt,
 #pragma omp simd
           for (int i = pmb->is; i <= pmb->ie; ++i) {
             Real idx = 1.0 / pco->dx1f(i);
+            if (NON_BAROTROPIC_EOS) {
+              if (eglm_)
+                cons(IEN,k,j,i) -= dt *
+                  (prim(IBX1,k,j,i)*(x1flux(IBX1,k,  j,  i+1)-x1flux(IBX1,k,j,i))*idx
+                 + prim(IBX2,k,j,i)*(x2flux(IBX2,k,  j+1,i)  -x2flux(IBX2,k,j,i))*idy
+                 + prim(IBX3,k,j,i)*(x3flux(IBX3,k+1,j,  i)  -x3flux(IBX3,k,j,i))*idz);
+              if (fde)
+                cons(IEN,k,j,i) -= (1.0 - df*df)*SQR(cons(IPS,k,j,i))/SQR(ch);
+            }
             cons(IPS,k,j,i) *= df;
-            if (NON_BAROTROPIC_EOS && eglm_)
-              cons(IEN,k,j,i) -= dt *
-                (prim(IBX1,k,j,i)*(x1flux(IBX1,k,  j,  i+1)-x1flux(IBX1,k,j,i))*idx
-               + prim(IBX2,k,j,i)*(x2flux(IBX2,k,  j+1,i)  -x2flux(IBX2,k,j,i))*idy
-               + prim(IBX3,k,j,i)*(x3flux(IBX3,k+1,j,  i)  -x3flux(IBX3,k,j,i))*idz);
           }
         }
       }
@@ -154,11 +160,15 @@ void HydroSourceTerms::HyperbolicDivergenceCleaning(const Real dt,
 #pragma omp simd
         for (int i = pmb->is; i <= pmb->ie; ++i) {
           Real idx = 1.0 / pco->dx1f(i);
+          if (NON_BAROTROPIC_EOS) {
+            if (eglm_)
+              cons(IEN,k,j,i) -= dt *
+                (prim(IBX1,k,j,i)*(x1flux(IBX1,k,j,  i+1)-x1flux(IBX1,k,j,i))*idx
+               + prim(IBX2,k,j,i)*(x2flux(IBX2,k,j+1,i)  -x2flux(IBX2,k,j,i))*idy);
+            if (fde)
+              cons(IEN,k,j,i) -= (1.0 - df*df)*SQR(cons(IPS,k,j,i))/SQR(ch);
+          }
           cons(IPS,k,j,i) *= df;
-          if (NON_BAROTROPIC_EOS && eglm_)
-            cons(IEN,k,j,i) -= dt *
-              (prim(IBX1,k,j,i)*(x1flux(IBX1,k,j,  i+1)-x1flux(IBX1,k,j,i))*idx
-             + prim(IBX2,k,j,i)*(x2flux(IBX2,k,j+1,i)  -x2flux(IBX2,k,j,i))*idy);
         }
       }
     } else { // 1D
@@ -167,9 +177,13 @@ void HydroSourceTerms::HyperbolicDivergenceCleaning(const Real dt,
       for (int i = pmb->is; i <= pmb->ie; ++i) {
         Real idx = 1.0 / pco->dx1f(i);
         cons(IPS,k,j,i) *= df;
-        if (NON_BAROTROPIC_EOS && eglm_)
-          cons(IEN,k,j,i) -= dt *
-            (prim(IBX1,k,j,i)*(x1flux(IBX1,k,  j,  i+1)-x1flux(IBX1,k,j,i))*idx);
+        if (NON_BAROTROPIC_EOS) {
+          if (eglm_)
+            cons(IEN,k,j,i) -= dt *
+              (prim(IBX1,k,j,i)*(x1flux(IBX1,k,  j,  i+1)-x1flux(IBX1,k,j,i))*idx);
+          if (fde)
+            cons(IEN,k,j,i) -= (1.0 - df*df)*SQR(cons(IPS,k,j,i))/SQR(ch);
+        }
       }
     }
   }

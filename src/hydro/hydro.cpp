@@ -151,6 +151,7 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
     ch_ = pin->GetOrAddReal("time", "dedner_ch", -1.0);
     if (ch_ <= 0.0)
       variable_ch_ = true;
+    dedner_energy_ = pin->GetOrAddBoolean("time", "dedner_energy", false);
   }
 }
 
