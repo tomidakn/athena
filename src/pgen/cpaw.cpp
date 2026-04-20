@@ -36,7 +36,7 @@
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 
-#if !MAGNETIC_FIELDS_ENABLED
+#if !(defined(MAGNETIC_FIELDS_ENABLED) || defined(CC_MAGNETIC_FIELDS_ENABLED))
 #error "This problem generator requires magnetic fields"
 #endif
 
@@ -155,9 +155,15 @@ void Mesh::UserWorkAfterLoop(ParameterInput *pin) {
           Real b1 = bx*cos_a2*cos_a3 - by*sin_a3 - bz*sin_a2*cos_a3;
           Real b2 = bx*cos_a2*sin_a3 + by*cos_a3 - bz*sin_a2*sin_a3;
           Real b3 = bx*sin_a2                    + bz*cos_a2;
-          err[NHYDRO + IB1] += std::abs(b1 - pmb->pfield->bcc(IB1,k,j,i));
-          err[NHYDRO + IB2] += std::abs(b2 - pmb->pfield->bcc(IB2,k,j,i));
-          err[NHYDRO + IB3] += std::abs(b3 - pmb->pfield->bcc(IB3,k,j,i));
+          if (MAGNETIC_FIELDS_ENABLED) {
+            err[NHYDRO + IB1] += std::abs(b1 - pmb->pfield->bcc(IB1,k,j,i));
+            err[NHYDRO + IB2] += std::abs(b2 - pmb->pfield->bcc(IB2,k,j,i));
+            err[NHYDRO + IB3] += std::abs(b3 - pmb->pfield->bcc(IB3,k,j,i));
+          } else if (CC_MAGNETIC_FIELDS_ENABLED) {
+            err[NHYDRO + IB1] += std::abs(b1 - pmb->phydro->u(IBX1,k,j,i));
+            err[NHYDRO + IB2] += std::abs(b2 - pmb->phydro->u(IBX2,k,j,i));
+            err[NHYDRO + IB3] += std::abs(b3 - pmb->phydro->u(IBX3,k,j,i));
+          }
 
           if (NON_BAROTROPIC_EOS) {
             Real e0 = pres/gm1 + 0.5*(m1*m1 + m2*m2 + m3*m3)/den
@@ -223,110 +229,134 @@ void Mesh::UserWorkAfterLoop(ParameterInput *pin) {
 //========================================================================================
 
 void MeshBlock::ProblemGenerator(ParameterInput *pin) {
-  AthenaArray<Real> a1, a2, a3;
   // nxN != ncellsN, in general. Allocate to extend through ghost zones, regardless # dim
   int nx1 = block_size.nx1 + 2*NGHOST;
   int nx2 = block_size.nx2 + 2*NGHOST;
   int nx3 = block_size.nx3 + 2*NGHOST;
-  a1.NewAthenaArray(nx3, nx2, nx1);
-  a2.NewAthenaArray(nx3, nx2, nx1);
-  a3.NewAthenaArray(nx3, nx2, nx1);
 
   int level = loc.level;
   // Initialize components of the vector potential
-  if (block_size.nx3 > 1) {
-    for (int k=ks; k<=ke+1; k++) {
-      for (int j=js; j<=je+1; j++) {
-        for (int i=is; i<=ie+1; i++) {
-          if ((pbval->nblevel[1][0][1]>level && j==js)
-              || (pbval->nblevel[1][2][1]>level && j==je+1)
-              || (pbval->nblevel[0][1][1]>level && k==ks)
-              || (pbval->nblevel[2][1][1]>level && k==ke+1)
-              || (pbval->nblevel[0][0][1]>level && j==js   && k==ks)
-              || (pbval->nblevel[0][2][1]>level && j==je+1 && k==ks)
-              || (pbval->nblevel[2][0][1]>level && j==js   && k==ke+1)
-              || (pbval->nblevel[2][2][1]>level && j==je+1 && k==ke+1)) {
-            Real x1l = pcoord->x1f(i)+0.25*pcoord->dx1f(i);
-            Real x1r = pcoord->x1f(i)+0.75*pcoord->dx1f(i);
-            a1(k,j,i) = 0.5*(A1(x1l, pcoord->x2f(j), pcoord->x3f(k)) +
-                             A1(x1r, pcoord->x2f(j), pcoord->x3f(k)));
-          } else {
-            a1(k,j,i) = A1(pcoord->x1v(i), pcoord->x2f(j), pcoord->x3f(k));
-          }
+  if (MAGNETIC_FIELDS_ENABLED) {
+    AthenaArray<Real> a1, a2, a3;
+    a1.NewAthenaArray(nx3, nx2, nx1);
+    a2.NewAthenaArray(nx3, nx2, nx1);
+    a3.NewAthenaArray(nx3, nx2, nx1);
+    if (block_size.nx3 > 1) {
+      for (int k=ks; k<=ke+1; k++) {
+        for (int j=js; j<=je+1; j++) {
+          for (int i=is; i<=ie+1; i++) {
+            if ((pbval->nblevel[1][0][1]>level && j==js)
+                || (pbval->nblevel[1][2][1]>level && j==je+1)
+                || (pbval->nblevel[0][1][1]>level && k==ks)
+                || (pbval->nblevel[2][1][1]>level && k==ke+1)
+                || (pbval->nblevel[0][0][1]>level && j==js   && k==ks)
+                || (pbval->nblevel[0][2][1]>level && j==je+1 && k==ks)
+                || (pbval->nblevel[2][0][1]>level && j==js   && k==ke+1)
+                || (pbval->nblevel[2][2][1]>level && j==je+1 && k==ke+1)) {
+              Real x1l = pcoord->x1f(i)+0.25*pcoord->dx1f(i);
+              Real x1r = pcoord->x1f(i)+0.75*pcoord->dx1f(i);
+              a1(k,j,i) = 0.5*(A1(x1l, pcoord->x2f(j), pcoord->x3f(k)) +
+                               A1(x1r, pcoord->x2f(j), pcoord->x3f(k)));
+            } else {
+              a1(k,j,i) = A1(pcoord->x1v(i), pcoord->x2f(j), pcoord->x3f(k));
+            }
 
-          if ((pbval->nblevel[1][1][0]>level && i==is)
-              || (pbval->nblevel[1][1][2]>level && i==ie+1)
-              || (pbval->nblevel[0][1][1]>level && k==ks)
-              || (pbval->nblevel[2][1][1]>level && k==ke+1)
-              || (pbval->nblevel[0][1][0]>level && i==is   && k==ks)
-              || (pbval->nblevel[0][1][2]>level && i==ie+1 && k==ks)
-              || (pbval->nblevel[2][1][0]>level && i==is   && k==ke+1)
-              || (pbval->nblevel[2][1][2]>level && i==ie+1 && k==ke+1)) {
-            Real x2l = pcoord->x2f(j)+0.25*pcoord->dx2f(j);
-            Real x2r = pcoord->x2f(j)+0.75*pcoord->dx2f(j);
-            a2(k,j,i) = 0.5*(A2(pcoord->x1f(i), x2l, pcoord->x3f(k)) +
-                             A2(pcoord->x1f(i), x2r, pcoord->x3f(k)));
-          } else {
-            a2(k,j,i) = A2(pcoord->x1f(i), pcoord->x2v(j), pcoord->x3f(k));
-          }
+            if ((pbval->nblevel[1][1][0]>level && i==is)
+                || (pbval->nblevel[1][1][2]>level && i==ie+1)
+                || (pbval->nblevel[0][1][1]>level && k==ks)
+                || (pbval->nblevel[2][1][1]>level && k==ke+1)
+                || (pbval->nblevel[0][1][0]>level && i==is   && k==ks)
+                || (pbval->nblevel[0][1][2]>level && i==ie+1 && k==ks)
+                || (pbval->nblevel[2][1][0]>level && i==is   && k==ke+1)
+                || (pbval->nblevel[2][1][2]>level && i==ie+1 && k==ke+1)) {
+              Real x2l = pcoord->x2f(j)+0.25*pcoord->dx2f(j);
+              Real x2r = pcoord->x2f(j)+0.75*pcoord->dx2f(j);
+              a2(k,j,i) = 0.5*(A2(pcoord->x1f(i), x2l, pcoord->x3f(k)) +
+                               A2(pcoord->x1f(i), x2r, pcoord->x3f(k)));
+            } else {
+              a2(k,j,i) = A2(pcoord->x1f(i), pcoord->x2v(j), pcoord->x3f(k));
+            }
 
-          if ((pbval->nblevel[1][1][0]>level && i==is)
-              || (pbval->nblevel[1][1][2]>level && i==ie+1)
-              || (pbval->nblevel[1][0][1]>level && j==js)
-              || (pbval->nblevel[1][2][1]>level && j==je+1)
-              || (pbval->nblevel[1][0][0]>level && i==is   && j==js)
-              || (pbval->nblevel[1][0][2]>level && i==ie+1 && j==js)
-              || (pbval->nblevel[1][2][0]>level && i==is   && j==je+1)
-              || (pbval->nblevel[1][2][2]>level && i==ie+1 && j==je+1)) {
-            Real x3l = pcoord->x3f(k)+0.25*pcoord->dx3f(k);
-            Real x3r = pcoord->x3f(k)+0.75*pcoord->dx3f(k);
-            a3(k,j,i) = 0.5*(A3(pcoord->x1f(i), pcoord->x2f(j), x3l) +
-                             A3(pcoord->x1f(i), pcoord->x2f(j), x3r));
-          } else {
-            a3(k,j,i) = A3(pcoord->x1f(i), pcoord->x2f(j), pcoord->x3v(k));
+            if ((pbval->nblevel[1][1][0]>level && i==is)
+                || (pbval->nblevel[1][1][2]>level && i==ie+1)
+                || (pbval->nblevel[1][0][1]>level && j==js)
+                || (pbval->nblevel[1][2][1]>level && j==je+1)
+                || (pbval->nblevel[1][0][0]>level && i==is   && j==js)
+                || (pbval->nblevel[1][0][2]>level && i==ie+1 && j==js)
+                || (pbval->nblevel[1][2][0]>level && i==is   && j==je+1)
+                || (pbval->nblevel[1][2][2]>level && i==ie+1 && j==je+1)) {
+              Real x3l = pcoord->x3f(k)+0.25*pcoord->dx3f(k);
+              Real x3r = pcoord->x3f(k)+0.75*pcoord->dx3f(k);
+              a3(k,j,i) = 0.5*(A3(pcoord->x1f(i), pcoord->x2f(j), x3l) +
+                               A3(pcoord->x1f(i), pcoord->x2f(j), x3r));
+            } else {
+              a3(k,j,i) = A3(pcoord->x1f(i), pcoord->x2f(j), pcoord->x3v(k));
+            }
+          }
+        }
+      }
+    } else {
+      for (int k=ks; k<=ke+1; k++) {
+        for (int j=js; j<=je+1; j++) {
+          for (int i=is; i<=ie+1; i++) {
+            if (i != ie+1)
+              a1(k,j,i) = A1(pcoord->x1v(i), pcoord->x2f(j), pcoord->x3f(k));
+            if (j != je+1)
+              a2(k,j,i) = A2(pcoord->x1f(i), pcoord->x2v(j), pcoord->x3f(k));
+            if (k != ke+1)
+              a3(k,j,i) = A3(pcoord->x1f(i), pcoord->x2f(j), pcoord->x3v(k));
           }
         }
       }
     }
-  } else {
-    for (int k=ks; k<=ke+1; k++) {
-      for (int j=js; j<=je+1; j++) {
+
+    // Initialize interface fields
+    
+    for (int k=ks; k<=ke; k++) {
+      for (int j=js; j<=je; j++) {
         for (int i=is; i<=ie+1; i++) {
-          if (i != ie+1)
-            a1(k,j,i) = A1(pcoord->x1v(i), pcoord->x2f(j), pcoord->x3f(k));
-          if (j != je+1)
-            a2(k,j,i) = A2(pcoord->x1f(i), pcoord->x2v(j), pcoord->x3f(k));
-          if (k != ke+1)
-            a3(k,j,i) = A3(pcoord->x1f(i), pcoord->x2f(j), pcoord->x3v(k));
+          pfield->b.x1f(k,j,i) = (a3(k  ,j+1,i) - a3(k,j,i))/pcoord->dx2f(j) -
+                                 (a2(k+1,j  ,i) - a2(k,j,i))/pcoord->dx3f(k);
         }
       }
     }
-  }
 
-  // Initialize interface fields
-  for (int k=ks; k<=ke; k++) {
-    for (int j=js; j<=je; j++) {
-      for (int i=is; i<=ie+1; i++) {
-        pfield->b.x1f(k,j,i) = (a3(k  ,j+1,i) - a3(k,j,i))/pcoord->dx2f(j) -
-                               (a2(k+1,j  ,i) - a2(k,j,i))/pcoord->dx3f(k);
+    for (int k=ks; k<=ke; k++) {
+      for (int j=js; j<=je+1; j++) {
+        for (int i=is; i<=ie; i++) {
+          pfield->b.x2f(k,j,i) = (a1(k+1,j,i  ) - a1(k,j,i))/pcoord->dx3f(k) -
+                                 (a3(k  ,j,i+1) - a3(k,j,i))/pcoord->dx1f(i);
+        }
       }
     }
-  }
 
-  for (int k=ks; k<=ke; k++) {
-    for (int j=js; j<=je+1; j++) {
-      for (int i=is; i<=ie; i++) {
-        pfield->b.x2f(k,j,i) = (a1(k+1,j,i  ) - a1(k,j,i))/pcoord->dx3f(k) -
-                               (a3(k  ,j,i+1) - a3(k,j,i))/pcoord->dx1f(i);
+    for (int k=ks; k<=ke+1; k++) {
+      for (int j=js; j<=je; j++) {
+        for (int i=is; i<=ie; i++) {
+          pfield->b.x3f(k,j,i) = (a2(k,j  ,i+1) - a2(k,j,i))/pcoord->dx1f(i) -
+                                 (a1(k,j+1,i  ) - a1(k,j,i))/pcoord->dx2f(j);
+        }
       }
     }
-  }
-
-  for (int k=ks; k<=ke+1; k++) {
-    for (int j=js; j<=je; j++) {
-      for (int i=is; i<=ie; i++) {
-        pfield->b.x3f(k,j,i) = (a2(k,j  ,i+1) - a2(k,j,i))/pcoord->dx1f(i) -
-                               (a1(k,j+1,i  ) - a1(k,j,i))/pcoord->dx2f(j);
+  } else if (CC_MAGNETIC_FIELDS_ENABLED) {
+    for (int k=ks; k<=ke; k++) {
+      for (int j=js; j<=je; j++) {
+        for (int i=is; i<=ie; i++) {
+          Real x = cos_a2*(pcoord->x1v(i)*cos_a3 + pcoord->x2v(j)*sin_a3) +
+                   pcoord->x3v(k)*sin_a2;
+          Real sn = std::sin(k_par*x);
+          Real cs = fac*std::cos(k_par*x);
+          Real bx = b_par;
+          Real by = b_perp*sn;
+          Real bz = b_perp*cs;
+          Real b1 = bx*cos_a2*cos_a3 - by*sin_a3 - bz*sin_a2*cos_a3;
+          Real b2 = bx*cos_a2*sin_a3 + by*cos_a3 - bz*sin_a2*sin_a3;
+          Real b3 = bx*sin_a2                    + bz*cos_a2;
+          phydro->u(IBX1,k,j,i) = b1;
+          phydro->u(IBX2,k,j,i) = b2;
+          phydro->u(IBX3,k,j,i) = b3;
+          phydro->u(IPS,k,j,i) = 0.0;
+        }
       }
     }
   }
@@ -351,13 +381,21 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
         phydro->u(IM3,k,j,i) = mx*sin_a2                    + mz*cos_a2;
 
         if (NON_BAROTROPIC_EOS) {
-          phydro->u(IEN,k,j,i) =
-              pres/gm1 +
-              0.5*(SQR(0.5*(pfield->b.x1f(k,j,i) + pfield->b.x1f(k,j,i+1))) +
-                   SQR(0.5*(pfield->b.x2f(k,j,i) + pfield->b.x2f(k,j+1,i))) +
-                   SQR(0.5*(pfield->b.x3f(k,j,i) + pfield->b.x3f(k+1,j,i)))) +
-              (0.5/den)*(SQR(phydro->u(IM1,k,j,i)) + SQR(phydro->u(IM2,k,j,i)) +
-                         SQR(phydro->u(IM3,k,j,i)));
+          if (MAGNETIC_FIELDS_ENABLED)
+            phydro->u(IEN,k,j,i) =
+                pres/gm1 +
+                0.5*(SQR(0.5*(pfield->b.x1f(k,j,i) + pfield->b.x1f(k,j,i+1))) +
+                     SQR(0.5*(pfield->b.x2f(k,j,i) + pfield->b.x2f(k,j+1,i))) +
+                     SQR(0.5*(pfield->b.x3f(k,j,i) + pfield->b.x3f(k+1,j,i)))) +
+                (0.5/den)*(SQR(phydro->u(IM1,k,j,i)) + SQR(phydro->u(IM2,k,j,i)) +
+                           SQR(phydro->u(IM3,k,j,i)));
+          else if (CC_MAGNETIC_FIELDS_ENABLED)
+            phydro->u(IEN,k,j,i) =
+                pres/gm1 +
+                0.5*(SQR(phydro->u(IBX1,k,j,i)) + SQR(phydro->u(IBX2,k,j,i)) +
+                     SQR(phydro->u(IBX3,k,j,i))) +
+                (0.5/den)*(SQR(phydro->u(IM1,k,j,i)) + SQR(phydro->u(IM2,k,j,i)) +
+                           SQR(phydro->u(IM3,k,j,i)));
         }
       }
     }
@@ -406,3 +444,20 @@ Real A3(const Real x1, const Real x2, const Real x3) {
   return Az*cos_a2;
 }
 } // namespace
+
+
+void MeshBlock::UserWorkInLoop() {
+  Real e0 = pres/gm1;
+  Real pmax=-1e300, pmin=1e300;
+  for (int k=ks; k<=ke; k++) {
+    for (int j=js; j<=je; j++) {
+      for (int i=is; i<=ie; i++) {
+        if (phydro->w(IPR,k,j,i) > pmax) pmax = phydro->w(IPR,k,j,i);
+        if (phydro->w(IPR,k,j,i) < pmin) pmin = phydro->w(IPR,k,j,i);
+      }
+    }
+  }
+  FILE *fp = fopen("eerr.dat", "a");
+  fprintf(fp, "%g %g %g %g %g\n", pmy_mesh->time, pmax/gm1-e0, pmin/gm1-e0, pmax/gm1/e0-1.0, pmin/gm1/e0-1.0);
+  fclose(fp);
+}

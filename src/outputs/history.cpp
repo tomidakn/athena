@@ -38,9 +38,14 @@
 
 // NEW_OUTPUT_TYPES:
 
+// In Dedner/GLM MHD, NHYDRO includes the cell-centered magnetic field and psi.
+// Those are reported as magnetic-energy history columns, not extra hydro columns.
+#define NHYDRO_HST (NHYDRO - 4*(CC_MAGNETIC_FIELDS_ENABLED))
+#define NFIELD_HST (3*((MAGNETIC_FIELDS_ENABLED) || (CC_MAGNETIC_FIELDS_ENABLED)))
+
 // "3" for 1-KE, 2-KE, 3-KE additional columns (come before tot-E)
 // 14 radiation variables, 4 cosmic ray variables
-#define NHISTORY_VARS ((NHYDRO) + (SELF_GRAVITY_ENABLED > 0) + (NFIELD) + 3 + (NSCALARS) \
+#define NHISTORY_VARS ((NHYDRO_HST) + (SELF_GRAVITY_ENABLED > 0) + (NFIELD_HST) + 3 + (NSCALARS) \
                       +(NRAD) + (NCR))
 
 //----------------------------------------------------------------------------------------
@@ -119,37 +124,44 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
             // Graviatational potential energy:
             if (SELF_GRAVITY_ENABLED) {
               const Real& phi = pgrav->phi(k,j,i);
-              hst_data[NHYDRO + 3] += vol(i)*0.5*u_d*phi;
+              hst_data[NHYDRO_HST + 3] += vol(i)*0.5*u_d*phi;
             }
             // Cell-centered magnetic energy, partitioned by coordinate direction:
-            if (MAGNETIC_FIELDS_ENABLED) {
-              const Real& bcc1 = pfld->bcc(IB1,k,j,i);
-              const Real& bcc2 = pfld->bcc(IB2,k,j,i);
-              const Real& bcc3 = pfld->bcc(IB3,k,j,i);
-              constexpr int prev_out = NHYDRO + 3 + (SELF_GRAVITY_ENABLED > 0);
-              hst_data[prev_out] += vol(i)*0.5*bcc1*bcc1;
-              hst_data[prev_out + 1] += vol(i)*0.5*bcc2*bcc2;
-              hst_data[prev_out + 2] += vol(i)*0.5*bcc3*bcc3;
+            if (MAGNETIC_FIELDS_ENABLED || CC_MAGNETIC_FIELDS_ENABLED) {
+              Real b1, b2, b3;
+              if (MAGNETIC_FIELDS_ENABLED) {
+                b1 = pfld->bcc(IB1,k,j,i);
+                b2 = pfld->bcc(IB2,k,j,i);
+                b3 = pfld->bcc(IB3,k,j,i);
+              } else {
+                b1 = phyd->u(IBX1,k,j,i);
+                b2 = phyd->u(IBX2,k,j,i);
+                b3 = phyd->u(IBX3,k,j,i);
+              }
+              constexpr int prev_out = NHYDRO_HST + 3 + (SELF_GRAVITY_ENABLED > 0);
+              hst_data[prev_out] += vol(i)*0.5*b1*b1;
+              hst_data[prev_out + 1] += vol(i)*0.5*b2*b2;
+              hst_data[prev_out + 2] += vol(i)*0.5*b3*b3;
             }
             // (conserved variable) Passive scalars:
             for (int n=0; n<NSCALARS; n++) {
               const Real& s = psclr->s(n,k,j,i);
-              constexpr int prev_out = NHYDRO + 3 + (SELF_GRAVITY_ENABLED > 0) + NFIELD;
+              constexpr int prev_out = NHYDRO_HST + 3 + (SELF_GRAVITY_ENABLED > 0) + NFIELD_HST;
               hst_data[prev_out + n] += vol(i)*s;
             }
             // average radiation field strength:
             if (CHEMRADIATION_ENABLED) {
               for (int n=0; n<pchemrad->nfreq; n++) {
                 const Real& ir = pchemrad->ir_avg(n,k,j,i);
-                constexpr int prev_out = NHYDRO + 3 + (SELF_GRAVITY_ENABLED > 0) + NFIELD
+                constexpr int prev_out = NHYDRO_HST + 3 + (SELF_GRAVITY_ENABLED > 0) + NFIELD_HST
                   + NSCALARS;
                 hst_data[prev_out + n] += vol(i)*ir;
               }
             }
             if (NR_RADIATION_ENABLED || IM_RADIATION_ENABLED) {
               if (prad->nfreq == 1) {
-                constexpr int prev_out = NHYDRO + 3 + (SELF_GRAVITY_ENABLED > 0)
-                                       + NFIELD + NSCALARS;
+                constexpr int prev_out = NHYDRO_HST + 3 + (SELF_GRAVITY_ENABLED > 0)
+                                       + NFIELD_HST + NSCALARS;
                 hst_data[prev_out + 0] += vol(i)*prad->rad_mom(IER,k,j,i);
                 hst_data[prev_out + 1] += vol(i)*prad->rad_mom(IFR1,k,j,i);
                 hst_data[prev_out + 2] += vol(i)*prad->rad_mom(IFR2,k,j,i);
@@ -172,8 +184,8 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
                       << "Incrase NRAD '" << NRAD << "' to 4x number of frequency groups";
                   ATHENA_ERROR(msg);
                 }
-                constexpr int prev_out = NHYDRO + 3 + (SELF_GRAVITY_ENABLED > 0)
-                                       + NFIELD + NSCALARS;
+                constexpr int prev_out = NHYDRO_HST + 3 + (SELF_GRAVITY_ENABLED > 0)
+                                       + NFIELD_HST + NSCALARS;
                 for (int ifr=0; ifr<prad->nfreq; ++ifr) {
                   hst_data[prev_out + 4*ifr] += vol(i)*prad->rad_mom_nu(ifr*13,k,j,i);
                   hst_data[prev_out + 4*ifr+1] += vol(i)*prad->rad_mom_nu(ifr*13+1,k,j,i);
@@ -183,7 +195,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
               }
             }
             if (CR_ENABLED) {
-              constexpr int prev_out = NHYDRO + 3 + (SELF_GRAVITY_ENABLED > 0) + NFIELD +
+              constexpr int prev_out = NHYDRO_HST + 3 + (SELF_GRAVITY_ENABLED > 0) + NFIELD_HST +
                                   NSCALARS + NRAD;
               hst_data[prev_out + 0] += vol(i)*pcr->u_cr(IER,k,j,i);
               hst_data[prev_out + 1] += vol(i)*pcr->u_cr(IFR1,k,j,i);
@@ -222,37 +234,44 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
             // Graviatational potential energy:
             if (SELF_GRAVITY_ENABLED) {
               const Real& phi = pgrav->phi(k,j,i);
-              hst_data[NHYDRO + 3] += vol(i)*0.5*u_d*phi;
+              hst_data[NHYDRO_HST + 3] += vol(i)*0.5*u_d*phi;
             }
             // Cell-centered magnetic energy, partitioned by coordinate direction:
-            if (MAGNETIC_FIELDS_ENABLED) {
-              const Real& bcc1 = pfld->bcc(IB1,k,j,i);
-              const Real& bcc2 = pfld->bcc(IB2,k,j,i);
-              const Real& bcc3 = pfld->bcc(IB3,k,j,i);
-              constexpr int prev_out = NHYDRO + 3 + (SELF_GRAVITY_ENABLED > 0);
-              hst_data[prev_out] += vol(i)*0.5*bcc1*bcc1;
-              hst_data[prev_out + 1] += vol(i)*0.5*bcc2*bcc2;
-              hst_data[prev_out + 2] += vol(i)*0.5*bcc3*bcc3;
+            if (MAGNETIC_FIELDS_ENABLED || CC_MAGNETIC_FIELDS_ENABLED) {
+              Real b1, b2, b3;
+              if (MAGNETIC_FIELDS_ENABLED) {
+                b1 = pfld->bcc(IB1,k,j,i);
+                b2 = pfld->bcc(IB2,k,j,i);
+                b3 = pfld->bcc(IB3,k,j,i);
+              } else {
+                b1 = phyd->u(IBX1,k,j,i);
+                b2 = phyd->u(IBX2,k,j,i);
+                b3 = phyd->u(IBX3,k,j,i);
+              }
+              constexpr int prev_out = NHYDRO_HST + 3 + (SELF_GRAVITY_ENABLED > 0);
+              hst_data[prev_out] += vol(i)*0.5*b1*b1;
+              hst_data[prev_out + 1] += vol(i)*0.5*b2*b2;
+              hst_data[prev_out + 2] += vol(i)*0.5*b3*b3;
             }
             // (conserved variable) Passive scalars:
             for (int n=0; n<NSCALARS; n++) {
               const Real& s = psclr->s(n,k,j,i);
-              constexpr int prev_out = NHYDRO + 3 + (SELF_GRAVITY_ENABLED > 0) + NFIELD;
+              constexpr int prev_out = NHYDRO_HST + 3 + (SELF_GRAVITY_ENABLED > 0) + NFIELD_HST;
               hst_data[prev_out + n] += vol(i)*s;
             }
             // average radiation field strength:
             if (CHEMRADIATION_ENABLED) {
               for (int n=0; n<pchemrad->nfreq; n++) {
                 const Real& ir = pchemrad->ir_avg(n,k,j,i);
-                constexpr int prev_out = NHYDRO + 3 + (SELF_GRAVITY_ENABLED > 0) + NFIELD
+                constexpr int prev_out = NHYDRO_HST + 3 + (SELF_GRAVITY_ENABLED > 0) + NFIELD_HST
                   + NSCALARS;
                 hst_data[prev_out + n] += vol(i)*ir;
               }
             }
             if (NR_RADIATION_ENABLED || IM_RADIATION_ENABLED) {
               if (prad->nfreq == 1) {
-                constexpr int prev_out = NHYDRO + 3 + (SELF_GRAVITY_ENABLED > 0)
-                                       + NFIELD + NSCALARS;
+                constexpr int prev_out = NHYDRO_HST + 3 + (SELF_GRAVITY_ENABLED > 0)
+                                       + NFIELD_HST + NSCALARS;
                 hst_data[prev_out + 0] += vol(i)*prad->rad_mom(IER,k,j,i);
                 hst_data[prev_out + 1] += vol(i)*prad->rad_mom(IFR1,k,j,i);
                 hst_data[prev_out + 2] += vol(i)*prad->rad_mom(IFR2,k,j,i);
@@ -275,8 +294,8 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
                       << "Incrase NRAD '" << NRAD << "' to 4x number of frequency groups";
                   ATHENA_ERROR(msg);
                 }
-                constexpr int prev_out = NHYDRO + 3 + (SELF_GRAVITY_ENABLED > 0)
-                                       + NFIELD + NSCALARS;
+                constexpr int prev_out = NHYDRO_HST + 3 + (SELF_GRAVITY_ENABLED > 0)
+                                       + NFIELD_HST + NSCALARS;
                 for (int ifr=0; ifr<prad->nfreq; ++ifr) {
                   hst_data[prev_out + 4*ifr] += vol(i)*prad->rad_mom_nu(ifr*13,k,j,i);
                   hst_data[prev_out + 4*ifr+1] += vol(i)*prad->rad_mom_nu(ifr*13+1,k,j,i);
@@ -286,7 +305,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
               }
             }
             if (CR_ENABLED) {
-              constexpr int prev_out = NHYDRO + 3 + (SELF_GRAVITY_ENABLED > 0) + NFIELD +
+              constexpr int prev_out = NHYDRO_HST + 3 + (SELF_GRAVITY_ENABLED > 0) + NFIELD_HST +
                                   NSCALARS + NRAD;
               hst_data[prev_out + 0] += vol(i)*pcr->u_cr(IER,k,j,i);
               hst_data[prev_out + 1] += vol(i)*pcr->u_cr(IFR1,k,j,i);
@@ -387,7 +406,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
       std::fprintf(pfile,"[%d]=3-KE     ", iout++);
       if (NON_BAROTROPIC_EOS) std::fprintf(pfile,"[%d]=tot-E   ", iout++);
       if (SELF_GRAVITY_ENABLED) std::fprintf(pfile,"[%d]=grav-E   ", iout++);
-      if (MAGNETIC_FIELDS_ENABLED) {
+      if (MAGNETIC_FIELDS_ENABLED || CC_MAGNETIC_FIELDS_ENABLED) {
         std::fprintf(pfile,"[%d]=1-ME    ", iout++);
         std::fprintf(pfile,"[%d]=2-ME    ", iout++);
         std::fprintf(pfile,"[%d]=3-ME    ", iout++);
